@@ -1,0 +1,18 @@
+﻿@page "/"
+@using Microsoft.EntityFrameworkCore
+@inject NavigationManager Nav
+@inject PosDbContext Db
+
+<p>Loading POS…</p>
+
+@code {
+    protected override async Task OnInitializedAsync()
+    {
+        var setting = await Db.LocalSettings.FirstOrDefaultAsync();
+
+        if (setting == null)
+            Nav.NavigateTo("/setup", true);
+        else
+            Nav.NavigateTo("/login", true);
+    }
+}

@@ -1,0 +1,220 @@
+﻿@page "/receipt/{SaleId:long}"
+@using FreshFalaye.Pos.Shared.Helpers
+@using Microsoft.EntityFrameworkCore
+
+@inject PosDbContext Db
+@inject IJSRuntime JS
+
+
+@if (sale == null)
+{
+    <p>Loading Receipt...</p>
+}
+else
+{
+    <div class="receipt">
+        <div class="center bold"><span style="font-size:14px;">@store.ReceiptLine1</span></div>
+        <div class="center bold"><span style="font-size:14px;">@store.ReceiptLine2</span></div>
+        <div class="center bold"><span style="font-size:14px;">@store.ReceiptLine3</span></div>
+        <div class="center"><span class="billDetailSection">@store.ReceiptLine4</span></div>
+        <div class="center"><span class="billDetailSection">@store.ReceiptLine5</span></div>
+        <div class="center"><span class="billDetailSection">@store.ReceiptLine6</span></div>      
+
+        <div style="font-family: monospace; border-top:solid"></div>
+
+        <div>
+            <table>
+                <tr>
+                    <td style="width:25%"><span class="billDetailSection">BILL NO. :</span></td>
+                    <td><span class="billDetailSection">@sale.BillNo.Replace(@store.BillPrefix,"")</span></td>
+                    <td style="width:25%"><span class="billDetailSection">AMOUNT : ₹</span></td>
+                    <td><span class="billDetailSection">@sale.GrandTotal</span></td>
+                </tr>
+                <tr>
+                    <td style="width:25%"><span class="billDetailSection">DATE :</span></td>
+                    <td><span class="billDetailSection">@sale.SaleDate.ToString("dd/MM/yyyy")</span></td>
+                    <td style="width:25%"><span class="billDetailSection">TIME :</span></td>
+                    <td><span class="billDetailSection">@sale.SaleDate.ToString("HH:mm")</span></td>
+                </tr>
+                <tr>
+                    <td style="width:25%"><span class="billDetailSection">COUNTER :</span></td>
+                    <td><span class="billDetailSection">@store.POSCounterNo</span></td>
+                    <td style="width:25%"><span class="billDetailSection">SALESMAN :</span></td>
+                    <td><span class="billDetailSection">@store.POSSalesman</span></td>
+                </tr>
+            </table>
+            <div class="bold"><span class="billDetailSection">NAME : @sale.CustomerName</span></div>
+            <div class="bold"><span class="billDetailSection">Mobile No. : @sale.CustomerMobile</span></div>            
+        </div>
+
+        <div style="font-family: monospace; border-top:solid"></div>
+        <div>
+            <span class="billDetailSection">Delivered To : </span>
+        </div>
+        <div style="font-family: monospace; border-top:solid"></div>
+
+        <table class="items">
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th class="right">MRP</th>
+                    <th class="right">DIS%</th>
+                    <th class="right">OUR RATE</th>
+                    <th class="right">QTY</th>
+                    <th class="right">AMOUNT</th>
+                </tr>
+                <tr>
+                    <td colspan="6">
+                        <div style="font-family: monospace; border-top:solid"></div>
+                    </td>
+                </tr>
+            </thead>
+            <tbody>                
+                @foreach (var i in sale.Items)
+                {
+                    <tr>
+                        <td colspan="6"><span class="bold" style="font-size:12px;">@i.ProductName</span></td>
+                    </tr>
+                    <tr class="itemstd">
+                        <td></td>
+                        <td class="right">@i.Mrp.ToString("0.00")</td>
+                        <td class="right">@i.Discount.ToString("0.00")</td>
+                        <td class="right">@i.Rate.ToString("0.00")</td>
+                        <td class="right">@i.Qty</td>                        
+                        <td class="right">@i.Amount.ToString("0.00")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        <div style="font-family: monospace; border-top:solid"></div>
+
+        <table class="items">
+            <tr>
+                <td width="30%">
+                    <span class="billDetailSection">Total Items</span>
+                </td>
+                <td width="20%">
+                    <span class="billDetailSection">@sale.Items.Count.ToString()</span>
+                </td>
+                <td style="width:30%;text-align:right;">
+                    <span class="billDetailSection">Total Qty</span>
+                </td>
+                <td style="width:20%;text-align:right;">
+                    <span class="billDetailSection">@sale.Items.Sum(i => i.Qty).ToString("0.00")</span>
+                </td>
+            </tr>
+        </table>        
+@* 
+        @if (sale.GstTotal > 0)
+        {
+            <div class="line">
+                <span>GST</span>
+                <span>@sale.GstTotal.ToString("0.00")</span>
+            </div>
+        }
+ *@
+        @if (sale.Expenses.Any())
+        {
+            <div style="font-family: monospace; border-top:solid"></div>
+            @foreach (var e in sale.Expenses)
+            {
+                <div class="line">
+                    <span>@e.ExpenseName</span>
+                    <span>@e.Amount.ToString("0.00")</span>
+                </div>
+            }
+        }
+
+        <div style="font-family: monospace; border-top:solid"></div>
+
+        
+        <div>
+            <table style="width:95%">
+                <tr>
+                    <td style="width:50%;">
+                        <span class="billDetailSection">NET AMOUNT</span>
+                    </td>
+                    <td style="width:50%; text-align:right;">
+                        <span class="billDetailSection">@sale.GrandTotal.ToString("0.00")</span>
+                    </td>                
+                </tr>
+            </table>
+        </div>
+        <div>
+            <b>@AmountToWords.Convert(sale.GrandTotal)</b>
+        </div>
+        <div style="text-align:right; padding-right:6px;">
+            <span class="billDetailSection">(INCL. OF ALL GST TAXES)</span>
+        </div>
+        <div style="font-family: monospace; border-top:solid"></div>
+        <div>
+            <table style="width:95%">
+                <tr>
+                    <td style="width:50%;"><span class="billDetailSection">TOTAL(MRP):</span></td>
+                    <td style="width:50%; text-align:right;"><span class="billDetailSection">@_totalMrp.ToString("0.00")</span></td>
+                </tr>
+                <tr>
+                    <td style="width:50%;"><span class="billDetailSection">TOTAL(SALE):</span></td>
+                    <td style="width:50%; text-align:right;"><u><span class="billDetailSection">@_totalSale.ToString("0.00")</span></u></td>
+                </tr>
+                <tr>
+                    <td style="width:50%;"><b><span style="font-size:15px;">SAVE:</span></b></td>
+                    <td style="width:50%; text-align:right;"><b><span style="font-size:15px;">@_totalSave.ToString("0.00")</span></b></td>
+                </tr>
+            </table>
+        </div>
+        <div style="font-family: monospace; border-top:solid"></div>
+        <div>
+            <span class="billDetailSection">Payment Mode: @sale.PaymentMode</span>
+        </div>
+        <div style="font-family: monospace; border-top:solid"></div>
+        <img src="/images/qr.jpg"
+             style="width:25mm;height:25mm;display:block;margin:1mm auto;" />
+        <hr />
+        <div class="center mt-2">
+            <span class="billDetailSection">Thank you for shopping!</span><br />
+            <span class="billDetailSection">Visit again 🙂</span>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public long SaleId { get; set; }
+
+    LocalSale? sale;
+    LocalStoreSettings? store;
+
+    decimal _totalMrp = 0;
+    decimal _totalSale = 0;
+    decimal _totalSave = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        store = await Db.LocalStoreSettings.FirstAsync();
+
+        sale = await Db.LocalSales
+            .Include(s => s.Items)
+            .Include(s => s.Expenses)
+            .FirstOrDefaultAsync(s => s.LocalSaleId == SaleId);
+
+        
+
+        foreach (var _item in sale.Items)
+        {
+            _totalMrp = _totalMrp + (_item.Mrp * _item.Qty);
+            _totalSale = _totalSale + (_item.Rate * _item.Qty);            
+        }
+        _totalSave = _totalMrp - _totalSale;
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender && sale != null)
+        {
+            await JS.InvokeVoidAsync("window.print");
+            //await JS.InvokeVoidAsync("printReceipt");
+            // ❌ DO NOT navigate
+        }
+    }
+}

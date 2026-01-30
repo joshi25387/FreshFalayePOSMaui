@@ -1,0 +1,37 @@
+﻿@rendermode InteractiveServer
+
+@inject PosAuthService Auth
+@inject IdleTimeoutService Idle
+@inject NavigationManager Nav
+
+@implements IDisposable
+
+@code {
+    bool initialized = false;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender || initialized)
+            return;
+
+        initialized = true;
+
+        // 🔐 Restore login (JS-safe here)
+        await Auth.RestoreUserAsync();
+
+        // 🔒 Start idle timer
+        await Idle.StartAsync();
+
+        Idle.OnLocked += OnLocked;
+    }
+
+    void OnLocked()
+    {
+        InvokeAsync(() => Nav.NavigateTo("/lock"));
+    }
+
+    public void Dispose()
+    {
+        Idle.OnLocked -= OnLocked;
+    }
+}

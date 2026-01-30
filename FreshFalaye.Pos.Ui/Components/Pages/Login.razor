@@ -1,0 +1,74 @@
+﻿@page "/login"
+@* @rendermode InteractiveServer *@
+
+@inject PosAuthService Auth
+@inject NavigationManager Nav
+
+<div class="login-container">
+
+    <div class="login-card">
+
+        <h3 class="text-center mb-3">Fresh फलाय POS</h3>
+        <p class="text-center text-muted mb-4">Login</p>
+
+        <div class="mb-3">
+            <label>Username</label>
+            <input class="form-control"
+                   @bind="username"
+                   @onkeydown="HandleKeyDown"
+                   autofocus />
+        </div>
+
+        <div class="mb-3">
+            <label>Password</label>
+            <input type="password"
+                   class="form-control"
+                   @bind="password"
+                   @onkeydown="HandleKeyDown" />
+        </div>
+
+        <button type="button" class="btn btn-primary w-100"
+                @onclick="TryLogin">
+            Login
+        </button>
+
+        @if (!string.IsNullOrEmpty(error))
+        {
+            <div class="text-danger text-center mt-2">
+                @error
+            </div>
+        }
+
+    </div>
+
+</div>
+
+@code {
+    string username = "";
+    string password = "";
+    string error = "";
+
+
+
+    async Task TryLogin()
+    {
+        error = "";
+
+        var ok = await Auth.LoginAsync(username, password);
+
+        if (!ok)
+        {
+            error = "Invalid username or password";
+            return;
+        }
+
+        Nav.NavigateTo("/pos");
+    }
+    void HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            _ = TryLogin();
+        }
+    }
+}

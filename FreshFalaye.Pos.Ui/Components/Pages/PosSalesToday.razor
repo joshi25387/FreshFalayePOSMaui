@@ -1,0 +1,117 @@
+﻿@page "/pos-sales-today"
+@* @rendermode InteractiveServer *@
+
+@using Microsoft.EntityFrameworkCore
+@inject PosDbContext Db
+@inject NavigationManager Nav
+
+<div class="container-fluid">
+
+    <!-- HEADER -->
+    <div class="row pos-header align-items-center mb-2">
+        <div class="col-md-6">
+            <b>📋 Today Sales</b>
+            <span class="text-muted">
+                (@DateTime.Today.ToString("dd MMM yyyy"))
+            </span>
+        </div>
+        <div class="col-md-6 text-end">
+            <button class="btn btn-sm btn-secondary"
+                    @onclick="GoToPos">
+                ⬅ Back to POS
+            </button>
+        </div>
+    </div>
+
+    <!-- SALES LIST -->
+    <div class="card">
+        <div class="card-body p-1">
+
+            @if (!sales.Any())
+            {
+                <p class="text-muted text-center m-2">
+                    No sales for today
+                </p>
+            }
+            else
+            {
+                <table class="table table-sm table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th width="90">Time</th>
+                            <th>Bill No</th>
+                            <th>Customer</th>
+                            <th width="80">Pay</th>
+                            <th width="100" class="text-end">Amount</th>
+                            <th width="60"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var s in sales)
+                        {
+                            <tr style="cursor:pointer"
+                                @onclick="() => ViewSale(s.SaleId)">
+                                <td>@s.Time.ToString("hh:mm tt")</td>
+                                <td><b>@s.BillNo</b></td>
+                                <td>@(s.CustomerName ?? "-")</td>
+                                <td>@s.PaymentMode</td>
+                                <td class="text-end">
+                                    ₹ @s.Amount.ToString("0.00")
+                                </td>
+                                <td class="text-center">
+                                    🔍
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+
+        </div>
+    </div>
+
+</div>
+
+@code {
+
+    class TodaySaleVm
+    {
+        public long SaleId { get; set; }
+        public string BillNo { get; set; } = null!;
+        public DateTime Time { get; set; }
+        public string? CustomerName { get; set; }
+        public string PaymentMode { get; set; } = null!;
+        public decimal Amount { get; set; }
+    }
+
+    List<TodaySaleVm> sales = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var today = DateTime.Today;
+
+        sales = await Db.LocalSales
+            .Where(s => s.SaleDate.Date == today)
+            .OrderByDescending(s => s.SaleDate)
+            .Select(s => new TodaySaleVm
+            {
+                SaleId = s.LocalSaleId,
+                BillNo = s.BillNo,
+                Time = s.SaleDate,
+                CustomerName = s.CustomerName,
+                PaymentMode = s.PaymentMode,
+                Amount = s.GrandTotal
+            })
+            .ToListAsync();
+    }
+
+    void ViewSale(long saleId)
+    {
+        Nav.NavigateTo($"/pos-sale-view/{saleId}");
+    }
+
+    void GoToPos()
+    {
+        Nav.NavigateTo("/pos");
+    }
+}

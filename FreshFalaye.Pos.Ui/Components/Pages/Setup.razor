@@ -1,0 +1,52 @@
+﻿@page "/setup"
+@* @rendermode InteractiveServer *@
+@inject PosDbContext Db
+@inject NavigationManager Nav
+@inject PosApiService Api
+
+<h3>POS Setup</h3>
+
+<input @bind="branchCode" placeholder="Branch Code" />
+<input @bind="deviceCode" placeholder="Device Code" />
+
+<button type="button" @onclick="Register">Register POS</button>
+
+<p>@message</p>
+
+@code {
+    string branchCode = "";
+    string deviceCode = "";
+    string message = "";
+
+    public async Task Register()
+    {
+        try
+        {
+            var result = await Api.RegisterPos(branchCode, deviceCode);
+
+            if (result == null)
+            {
+                message = "Registration failed";
+                return;
+            }
+
+            Db.LocalSettings.Add(new LocalSetting
+            {
+                BranchId = result.BranchId,
+                BranchCode = branchCode,
+                PosDeviceId = result.PosDeviceId,
+                PosDeviceCode = result.PosDeviceCode,
+                LastBillSequence = 0
+            });
+
+            await Db.SaveChangesAsync();
+            Nav.NavigateTo("/pos", true);
+        }
+        catch (Exception ex)
+        {
+            
+            throw;
+        }
+        
+    }
+}

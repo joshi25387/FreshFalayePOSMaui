@@ -1,0 +1,13 @@
+﻿
+@using FreshFalaye.Pos.Ui.Components.Layout
+@using FreshFalaye.Pos.Ui.Components.Pages
+@using Microsoft.AspNetCore.Components.Routing
+<Router AppAssembly="@typeof(BlazorApp).Assembly"
+                AdditionalAssemblies="new[] { typeof(ReceiptHtml).Assembly }">
+    <Found Context="routeData">
+        <RouteView RouteData="routeData" />
+    </Found>
+    <NotFound>
+        <h3>Page not found</h3>
+    </NotFound>
+</Router>

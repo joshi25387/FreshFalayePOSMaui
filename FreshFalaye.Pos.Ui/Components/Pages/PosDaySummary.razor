@@ -1,0 +1,141 @@
+﻿@page "/pos-day-summary"
+@* @rendermode InteractiveServer *@
+
+@using Microsoft.EntityFrameworkCore
+@inject PosDbContext Db
+@inject NavigationManager Nav
+
+<div class="container-fluid">
+
+    <!-- HEADER -->
+    <div class="row pos-header align-items-center mb-2">
+        <div class="col-md-6">
+            <b>📊 Day Summary</b>
+            <span class="text-muted">
+                (@DateTime.Today.ToString("dd MMM yyyy"))
+            </span>
+        </div>
+        <div class="col-md-6 text-end">
+            <button class="btn btn-sm btn-secondary"
+                    @onclick="BackToPos">
+                ⬅ Back to POS
+            </button>
+        </div>
+    </div>
+
+    <!-- SUMMARY CARDS -->
+    <div class="row g-2 mb-2">
+
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body py-2">
+                    <div class="text-muted">Total Bills</div>
+                    <h5>@TotalBills</h5>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body py-2">
+                    <div class="text-muted">Total Sales</div>
+                    <h5>₹ @TotalSales.ToString("0.00")</h5>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body py-2">
+                    <div class="text-muted">Cash</div>
+                    <h5>₹ @CashTotal.ToString("0.00")</h5>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-3">
+            <div class="card text-center">
+                <div class="card-body py-2">
+                    <div class="text-muted">UPI + Card</div>
+                    <h5>₹ @((UpiTotal + CardTotal).ToString("0.00"))</h5>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- PAYMENT BREAKDOWN -->
+    <div class="card">
+        <div class="card-header py-1">
+            <b>Payment Breakdown</b>
+        </div>
+        <div class="card-body p-1">
+
+            <table class="table table-sm table-bordered mb-0">
+                <tr>
+                    <th>Payment Mode</th>
+                    <th class="text-end">Amount</th>
+                </tr>
+                <tr>
+                    <td>Cash</td>
+                    <td class="text-end">₹ @CashTotal.ToString("0.00")</td>
+                </tr>
+                <tr>
+                    <td>UPI</td>
+                    <td class="text-end">₹ @UpiTotal.ToString("0.00")</td>
+                </tr>
+                <tr>
+                    <td>Card</td>
+                    <td class="text-end">₹ @CardTotal.ToString("0.00")</td>
+                </tr>
+                <tr class="table-light">
+                    <th>Total</th>
+                    <th class="text-end">
+                        ₹ @TotalSales.ToString("0.00")
+                    </th>
+                </tr>
+            </table>
+
+        </div>
+    </div>
+
+</div>
+
+@code {
+
+    int TotalBills;
+    decimal TotalSales;
+    decimal CashTotal;
+    decimal UpiTotal;
+    decimal CardTotal;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var today = DateTime.Today;
+
+        var todaySales = await Db.LocalSales
+            .Where(s => s.SaleDate.Date == today)
+            .ToListAsync();
+
+        TotalBills = todaySales.Count;
+
+        CashTotal = todaySales
+            .Where(s => s.PaymentMode == "Cash")
+            .Sum(s => s.GrandTotal);
+
+        UpiTotal = todaySales
+            .Where(s => s.PaymentMode == "UPI")
+            .Sum(s => s.GrandTotal);
+
+        CardTotal = todaySales
+            .Where(s => s.PaymentMode == "Card")
+            .Sum(s => s.GrandTotal);
+
+        TotalSales = CashTotal + UpiTotal + CardTotal;
+    }
+
+    void BackToPos()
+    {
+        Nav.NavigateTo("/pos");
+    }
+}

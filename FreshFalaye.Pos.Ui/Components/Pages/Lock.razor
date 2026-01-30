@@ -1,0 +1,78 @@
+﻿@page "/lock"
+@rendermode InteractiveServer
+
+@inject PosAuthService Auth
+@inject IdleTimeoutService Idle
+@inject NavigationManager Nav
+
+<div class="lock-screen">
+
+    <div class="lock-card">
+
+        <div class="lock-icon">🔒</div>
+
+        <h4 class="mb-1">POS Locked</h4>
+
+        <div class="text-muted mb-3">
+            User: <b>@Auth.CurrentUser?.Username</b>
+        </div>
+
+        <input type="password"
+               maxlength="4"
+               placeholder="Enter PIN"
+               class="form-control lock-pin"
+               @bind="pin"
+               @onkeydown="HandleKey" />
+
+        <button class="btn btn-success w-100 mt-3"
+                type="button"
+                @onclick="Unlock">
+            Unlock
+        </button>
+
+        @if (!string.IsNullOrEmpty(error))
+        {
+            <div class="text-danger text-center mt-2">
+                @error
+            </div>
+        }
+
+    </div>
+
+</div>
+
+@code {
+    string pin = "";
+    string error = "";
+
+    async Task Unlock()
+    {
+        error = "";
+
+        if (pin.Length != 4)
+        {
+            error = "Enter 4-digit PIN";
+            return;
+        }
+
+        var ok = await Auth.UnlockWithPinAsync(pin);
+
+        if (!ok)
+        {
+            error = "Invalid PIN";
+            pin = "";
+            return;
+        }
+
+        Idle.Unlock();
+        Nav.NavigateTo("/pos");
+    }
+
+    void HandleKey(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter")
+        {
+            _ = Unlock();
+        }
+    }
+}

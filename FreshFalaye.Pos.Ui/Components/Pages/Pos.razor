@@ -1,0 +1,803 @@
+﻿@page "/pos"
+@using FreshFalaye.Pos.Shared.Abstractions
+@inject IReceiptPrinter ReceiptPrinter
+@implements IDisposable
+@* @rendermode InteractiveServer *@
+
+
+
+
+
+@inject PosDbContext Db
+@inject BillNumberService BillNoService
+@inject PosApiService Api
+@inject PosSaleService SaleService
+@inject PosAuthService Auth
+@inject NavigationManager Nav
+@inject PosSyncService SyncService
+@inject NotificationService NotificationService
+@inject ApiSettings ApiSettings
+@inject IJSRuntime JS
+
+<RadzenNotification />
+
+<div tabindex="0"
+     @onkeydown="HandleKeyDown"
+     class="container-fluid">
+
+    @if (isSyncing)
+    {
+        <div class="pos-sync-overlay">
+            <div class="sync-box">
+                <div class="spinner-border text-light mb-3" role="status"></div>
+                <h5>Syncing data…</h5>
+                <p>Please wait</p>
+            </div>
+        </div>
+    }
+    else
+    {
+
+        <!-- ================= HEADER ================= -->
+        @if (Auth.IsInitialized && Auth.CurrentUser != null)
+        {
+            <div class="pos-header mb-2">
+
+                <!-- ROW 1: USER / BILL / ACTIONS -->
+                <div class="row align-items-center">
+                    <div class="col-md-4">
+                        👤 <b>@Auth.CurrentUser.Username</b>
+                        <span class="role">(@Auth.CurrentUser.Role)</span>
+                    </div>
+
+                    <div class="col-md-4 text-center">
+                        <b>Bill No:</b> @billNo
+                    </div>
+
+                    <div class="col-md-4 text-end">
+                        <button type="button"
+                                class="btn btn-sm btn-primary me-2"
+                                disabled="@isSyncing"
+                                @onclick="SyncNow">
+                            @(isSyncing ? "Syncing..." : "Sync")
+                        </button>
+
+                        <button type="button"
+                                class="btn btn-sm btn-danger"
+                                @onclick="Logout">
+                            Logout
+                        </button>
+                    </div>
+                </div>
+
+                <!-- ROW 2: POS MENU -->
+                <div class="row mt-1">
+                    <div class="col-12">
+
+                       @*  <button class="btn btn-sm btn-outline-secondary me-1"
+                                disabled>
+                            🧾 POS
+                        </button>
+ *@
+                        <button class="btn btn-sm btn-outline-secondary me-1"
+                                @onclick='() => Nav.NavigateTo("/pos-sales-today")'>
+                            <b style="color:#ef8993">📋 Today Sales</b>
+                        </button>
+
+                        <button class="btn btn-sm btn-outline-secondary me-1"
+                                @onclick='() => Nav.NavigateTo("/pos-day-summary")'>
+                            <b style="color:#ef8993">📊 Day Summary</b>
+                        </button>
+
+                    </div>
+                </div>
+            </div>
+            @* <div class="row pos-header align-items-center mb-2">
+            <div class="col-md-4">
+                👤 <b>@Auth.CurrentUser.Username</b>
+                <span class="role">(@Auth.CurrentUser.Role)</span>
+            </div>
+
+            <div class="col-md-4 text-center">
+                <b>Bill No:</b> @billNo
+            </div>
+
+            <div class="col-md-4 text-end">
+                <button type="button" class="btn btn-sm btn-primary me-2"
+                        disabled="@isSyncing"
+                        @onclick="SyncNow">
+                    @(isSyncing ? "Syncing..." : "Sync")
+                </button>
+
+                <button type="button" class="btn btn-sm btn-danger"
+                        @onclick="Logout">
+                    Logout
+                </button>
+            </div>
+        </div> *@
+        }
+
+        <!-- ================= SALE HEADER ================= -->
+        <div class="row g-2 mb-2">
+            <div class="col-md-2">
+                <label>Date</label>
+                <input type="date" class="form-control form-control-sm"
+                       @onfocusin="() => isInputFocused = true"
+                       @onfocusout="() => isInputFocused = false"
+                       @bind="saleDate" />
+            </div>
+
+            <div class="col-md-2">
+                <label>Bill No</label>
+                <input class="form-control form-control-sm"
+                       @onfocusin="() => isInputFocused = true"
+                       @onfocusout="() => isInputFocused = false"
+                       value="@billNo" disabled />
+            </div>
+
+            <div class="col-md-2">
+                <label>Payment</label>
+                <select class="form-select form-select-sm"
+                        @onfocusin="() => isInputFocused = true"
+                        @onfocusout="() => isInputFocused = false"
+                        @bind="paymentMode">
+                    <option>Cash</option>
+                    <option selected>UPI</option>
+                    <option>Card</option>
+                </select>
+            </div>
+
+            <div class="col-md-3">
+                <label>Customer Mobile</label>
+                <input class="form-control form-control-sm"
+                       @ref="customerMobileRef"
+                       @onfocusin="() => isInputFocused = true"
+                       @onfocusout="() => isInputFocused = false"
+                       @bind="customerMobile" />
+            </div>
+
+            <div class="col-md-3">
+                <label>Customer Name</label>
+                <input class="form-control form-control-sm"
+                       @ref="customerNameRef"
+                       @onfocusin="() => isInputFocused = true"
+                       @onfocusout="() => isInputFocused = false"
+                       @bind="customerName" />
+            </div>
+        </div>
+
+        <!-- ================= PRODUCT GROUP FILTER ================= -->
+        <div class="row">
+            <!-- LEFT: PRODUCTS -->
+
+
+            <div class="col-md-7 pos-left">
+                <!-- Product Groups -->
+                <div class="row mb-2">
+                    <div class="col-12 group-filter">
+                        <button class="btn btn-sm btn-secondary me-1
+                                           @(selectedGroupId == Guid.Empty ? "active" : "")"
+                                @onclick="() => SelectGroup(Guid.Empty)">
+                            All
+                        </button>
+
+                        @foreach (var g in productGroups)
+                        {
+                            <button class="btn btn-sm btn-secondary me-1
+                                                                   @(selectedGroupId == g.ProductGroupId ? "active" : "")"
+                                    @onclick="() => SelectGroup(g.ProductGroupId)">
+                                @g.GroupName
+                            </button>
+                        }
+                    </div>
+                </div>
+                <!-- Product Search -->
+                <div class="row mb-2">
+                    <div class="col-12">
+                        <input type="text"
+                               class="form-control form-control-sm"
+                               placeholder="🔍 Search product..."
+                               @ref="productSearchRef"
+                               @bind="productSearch"
+                               @bind:event="oninput"
+                               @onfocusin="() => isInputFocused = true"
+                               @onfocusout="() => isInputFocused = false" />
+                    </div>
+                </div>
+
+                <!-- Product Grid -->
+                <div class="row pos-product-grid">
+                    @foreach (var p in FilteredProducts)
+                    {
+                        <div class="col-6 col-md-3 col-lg-2 mb-2">
+                            <div class="product-tile"
+                                 @onclick="() => AddToCart(p)">
+                                @if (!string.IsNullOrEmpty(p.ImagePath))
+                                {
+                                    @* <img src="@p.ImagePath" /> *@
+                                    <img src="@GetProductImageUrl(p)"
+                                         onerror="this.src='/images/no-image.png'" />
+                                }
+                                <div class="product-name">@p.ProductName</div>
+                                <div class="product-price">
+                                    ₹ @p.SalePrice / @p.UnitCode
+                                </div>
+                            </div>
+                        </div>
+                    }
+                </div>
+            </div>
+
+
+            <!-- RIGHT: CART + EXPENSES -->
+            <div class="col-md-5 pos-right">
+                <!-- CART -->
+                <div class="card pos-cart mb-2">
+                    <div class="card-header py-1">
+                        <b>Cart</b>
+                    </div>
+                    <div class="card-body p-1 cart-items">
+                        @if (!cart.Any())
+                        {
+                            <p class="text-muted">No items added</p>
+                        }
+                        else
+                        {
+                            <table class="table table-sm table-bordered mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Item</th>
+                                        <th width="70">Qty</th>
+                                        <th width="70">Dis%</th>
+                                        <th width="70">Mrp</th>
+                                        <th width="70">Rate</th>
+                                        <th width="80">Total</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var item in cart)
+                                    {
+                                        <tr class="@(item == selectedItem ? "table-primary" : "")"
+                                            @onclick="() => SelectCartItem(item)">
+                                            <td>@item.ProductName</td>
+                                            
+                                            
+                                            <td>
+                                                <input type="number"
+                                                       class="form-control form-control-sm"
+                                                       step="@(item.DecimalAllowed ? "0.001" : "1")"
+                                                       value="@item.Qty"
+                                                       @onchange="e => UpdateQty(item, e)" />
+                                            </td>
+                                            <td>@item.Discount</td>
+                                            <td>@item.Mrp</td>
+                                            <td>@item.Rate</td>
+                                            <td>@item.LineTotal.ToString("0.00")</td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        }
+                    </div>
+
+                    <div class="card-footer cart-footer">
+                        <div class="cart-total">
+                            ₹ @GrandTotal.ToString("0.00")
+                        </div>
+
+                        <button class="btn btn-success w-100 mt-2"
+                                @onclick="SaveBill">
+                            💾 Save (F2)
+                        </button>
+                    </div>
+                </div>
+                <!-- EXPENSES -->
+                <div class="card">
+                    <div class="card-header py-1">
+                        <b>Expenses</b>
+                    </div>
+                    <div class="card-body p-1">
+                        @if (!expenses.Any())
+                        {
+                            <p class="text-muted">No sale expenses defined</p>
+                        }
+                        else
+                        {
+                            <table class="table table-sm table-bordered">
+                                <tr>
+                                    <th></th>
+                                    <th>Expense</th>
+                                    <th>Bearer</th>
+                                    <th>Amount</th>
+                                </tr>
+
+                                @foreach (var exp in expenses)
+                                {
+                                    <tr>
+                                        <td>
+                                            <input type="checkbox"
+                                                   @onfocusin="() => isInputFocused = true"
+                                                   @onfocusout="() => isInputFocused = false"
+                                                   @bind="exp.IsSelected"
+                                                   @bind:after="RecalculateExpenses" />
+                                        </td>
+                                        <td>@exp.ExpenseName</td>
+                                        <td>@exp.Bearer</td>
+                                        <td>@exp.CalculatedAmount.ToString("0.00")</td>
+                                    </tr>
+                                }
+                            </table>
+                        }
+                    </div>
+                </div>
+            </div>
+
+
+
+        </div>
+
+        <!-- ================= ACTION BAR ================= -->
+        <div class="row mt-3 pos-actions">
+            <div class="col-12 text-end">
+                @* <button type="button" class="btn btn-success btn-lg me-2"
+                    @onclick="SaveBill">
+                💾 Save (F2)
+            </button> *@
+
+                <span class="text-danger ms-2">@error</span>
+                <span class="text-success ms-2">@success</span>
+            </div>
+        </div>
+
+    }
+
+
+</div>
+
+
+
+
+
+
+
+
+
+
+
+@code {
+
+    class ExpenseVm
+    {
+        public Guid ExpenseId { get; set; }
+        public string ExpenseName { get; set; } = null!;
+        public string RateType { get; set; } = null!;
+        public decimal Rate { get; set; }
+        public string Bearer { get; set; } = null!;
+        public bool IsSelected { get; set; }
+        public decimal CalculatedAmount { get; set; }
+    }
+
+    List<ExpenseVm> expenses = new();
+
+    bool authChecked = false;
+    bool isSyncing = false;
+    string productSearch = "";
+
+    ElementReference customerMobileRef;
+    ElementReference customerNameRef;
+
+    // ================= SALE HEADER =================
+    DateTime saleDate = DateTime.Today;
+    string billNo = "";
+    string paymentMode = "Cash";
+    string? customerMobile;
+    string? customerName;
+
+    List<LocalProductGroup> productGroups = new();
+    Guid selectedGroupId = Guid.Empty;
+
+    string error = "";
+    string success = "";
+
+    bool isInputFocused = false;
+
+    CartItem? selectedItem;
+
+    ElementReference productSearchRef;
+
+    // ================= DATA =================
+    List<LocalProduct> products = new();
+    List<CartItem> cart = new();
+
+  //   IEnumerable<LocalProduct> FilteredProducts =>
+  // selectedGroupId == 0
+  //     ? products
+  //     : products.Where(p => p.ProductGroupId == selectedGroupId);
+
+    IEnumerable<LocalProduct> FilteredProducts =>
+      products.Where(p =>
+          (selectedGroupId == Guid.Empty || p.ProductGroupId == selectedGroupId) &&
+          (string.IsNullOrWhiteSpace(productSearch) ||
+           p.ProductName.Contains(productSearch, StringComparison.OrdinalIgnoreCase))
+      );
+
+    protected override async Task OnInitializedAsync()
+    {
+        Auth.AuthStateChanged += OnAuthStateChanged;
+
+        billNo = await BillNoService.PeekNextBillNoAsync();
+
+        await LoadProductGroups();
+        await LoadProducts();
+        await LoadExpenses();
+
+    }
+
+    async Task LoadProductGroups()
+    {
+        productGroups = await Db.LocalProductGroups.Where(p => p.IsActive).ToListAsync();
+    }
+    async Task LoadProducts()
+    {
+        products = await Db.LocalProducts
+            .Where(p => p.IsActive)
+            .ToListAsync();
+    }
+    async Task SyncNow()
+    {
+        if (isSyncing)
+            return;
+
+        await Auth.GetApiToken();
+        await Auth.RestoreApiTokenAsync();
+
+        isSyncing = true;
+        error = "";
+        success = "";
+        StateHasChanged();
+        try
+        {
+            // BranchId should already be in LocalSetting
+            var setting = await Db.LocalSettings.FirstAsync();
+
+            // 🔄 ORDER MATTERS
+
+            //await SyncService.SyncSalesToServerAsync();
+
+            await SyncService.SyncSalesAsync(setting.BranchId);
+            await SyncService.SyncStockAsync(setting.BranchId);
+
+            await SyncService.SyncProductGroupsAsync();
+            await SyncService.SyncProductsAsync(setting.BranchId);
+            await SyncService.SyncExpenses();
+
+            await LoadProductGroups();
+            await LoadProducts();
+            await LoadExpenses();
+
+            success = "Sync completed successfully";
+        }
+        catch (Exception ex)
+        {
+            error = $"Sync failed: {ex.Message}";
+        }
+        finally
+        {
+            isSyncing = false;
+            StateHasChanged();
+        }
+    }
+    void SelectCartItem(CartItem item)
+    {
+        selectedItem = item;
+    }
+
+    void OnAuthStateChanged()
+    {
+        InvokeAsync(StateHasChanged);
+    }
+    public void Dispose()
+    {
+        Auth.AuthStateChanged -= OnAuthStateChanged;
+    }
+    void SelectGroup(Guid groupId)
+    {
+        selectedGroupId = groupId;
+        productSearch = "";
+        StateHasChanged();
+    }
+
+    string GetGroupClass(Guid groupId)
+    {
+        return selectedGroupId == groupId ? "active" : "";
+    }
+
+    // ================= INIT =================
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!Auth.IsInitialized)
+            return;
+
+        if (Auth.CurrentUser == null)
+        {
+            Nav.NavigateTo("/login");
+            return;
+        }
+
+        if (firstRender)
+        {
+            await JS.InvokeVoidAsync("blazorFocus", customerMobileRef);
+            // billNo = await BillNoService.PeekNextBillNoAsync();
+
+            // productGroups = await Db.LocalProductGroups.Where(p => p.IsActive).ToListAsync();
+
+            // products = await Db.LocalProducts
+            //     .Where(p => p.IsActive)
+            //     .ToListAsync();
+
+            // await LoadExpenses();
+            // StateHasChanged();
+        }
+    }
+
+
+    async Task Logout()
+    {
+        await Auth.LogoutAsync();
+        Nav.NavigateTo("/login");
+    }
+    async Task LoadExpenses()
+    {
+        expenses = await Db.LocalExpenseMaster.Where(e => e.IsActive)
+                            .Select(e => new ExpenseVm
+                            {
+                                ExpenseId = e.Id,
+                                ExpenseName = e.ExpenseName,
+                                RateType = e.RateType,
+                                Rate = e.Rate,
+                                Bearer = e.Bearer
+                            }).ToListAsync();
+        // var apiExpenses = await Api.GetSaleExpensesAsync();
+
+        // expenses = apiExpenses.Select(e => new ExpenseVm
+        // {
+        //     ExpenseId = e.Id,
+        //     ExpenseName = e.ExpenseName,
+        //     RateType = e.RateType,
+        //     Rate = e.Rate,
+        //     Bearer = e.Bearer
+        // }).ToList();
+    }
+
+    void RecalculateExpenses()
+    {
+        var productSubTotal = cart.Sum(x => x.Amount);
+
+        foreach (var exp in expenses)
+        {
+            if (!exp.IsSelected)
+            {
+                exp.CalculatedAmount = 0;
+                continue;
+            }
+
+            decimal amount;
+
+            if (exp.RateType == "#")
+            {
+                amount = exp.Rate;
+            }
+            else // %
+            {
+                amount = productSubTotal * exp.Rate / 100;
+            }
+
+            // Always store positive amount
+            exp.CalculatedAmount = Math.Round(amount, 2);
+
+        }
+    }
+
+    // ================= CART LOGIC =================
+    void AddToCart(LocalProduct product)
+    {
+        var existing = cart.FirstOrDefault(x => x.ProductId == product.ProductId);
+
+        if (existing != null)
+        {
+            existing.Qty += 1;
+        }
+        else
+        {
+            cart.Add(new CartItem
+            {
+                ProductId = product.ProductId,
+                ProductName = product.ProductName,
+                UnitCode = product.UnitCode,
+                DecimalAllowed = product.DecimalAllowed,
+                Qty = 1,
+                Mrp = product.Mrp,
+                Discount = product.Discount,
+                Rate = product.SalePrice,
+                GstPercent = product.GstPercent
+            });
+        }
+        RecalculateExpenses();
+    }
+
+    void UpdateQty(CartItem item, ChangeEventArgs e)
+    {
+        if (decimal.TryParse(e.Value?.ToString(), out var qty))
+        {
+            if (!item.DecimalAllowed)
+                qty = Math.Floor(qty);
+
+            item.Qty = qty;
+        }
+        RecalculateExpenses();
+    }
+
+    async Task SaveBill()
+    {      
+        try
+        {
+            if (saleDate == null)
+            {
+                ShowError("Select Date");
+                return;                
+            }
+            if (string.IsNullOrWhiteSpace(customerMobile))
+            {
+                await JS.InvokeVoidAsync("blazorFocus", customerMobileRef);
+                ShowError("Enter Customer Mobile");
+                return;
+            }
+            if (string.IsNullOrWhiteSpace(customerName))
+            {
+                await JS.InvokeVoidAsync("blazorFocus", customerNameRef);
+                ShowError("Enter Customer Name");
+                return;
+            }
+            if (!cart.Any())
+            {
+                ShowError("Cart is empty");                
+                return;
+            }
+
+            // Prepare selected expenses
+            var saleExpenses = expenses
+                .Where(x => x.IsSelected)
+                .Select(x => new LocalSaleExpense
+                {
+                    ExpenseId = x.ExpenseId,
+                    ExpenseName = x.ExpenseName,
+                    RateType = x.RateType,
+                    Rate = x.Rate,
+                    Amount = x.CalculatedAmount,
+                    Bearer = x.Bearer
+                })
+                .ToList();
+
+            // Call service
+            var saleId = await SaleService.SaveSaleAsync(
+                cart,
+                saleExpenses,
+                paymentMode,
+                customerMobile,
+                customerName
+            );
+
+            // Reset UI
+            cart.Clear();
+            expenses.ForEach(e =>
+            {
+                e.IsSelected = false;
+                e.CalculatedAmount = 0;
+            });
+
+            customerMobile = "";
+            customerName = "";
+            paymentMode = "Cash";
+
+            // Generate next bill number
+            billNo = await BillNoService.GenerateNextBillNoAsync();
+
+            ShowSuccess($"Bill saved successfully (Sale #{saleId})");            
+
+            //Nav.NavigateTo($"/receipt/{saleId}", true);
+            await ReceiptPrinter.PrintAsync(saleId);
+            // await JS.InvokeVoidAsync(
+            //         "printReceipt",
+            //         $"/receipt/{saleId}"
+            //     );
+           await JS.InvokeVoidAsync("blazorFocus", customerMobileRef);
+        }
+        catch (Exception ex)
+        {
+            ShowError(ex.Message);            
+        }
+    }
+
+    void HandleKeyDown(KeyboardEventArgs e)
+    {
+        if (isSyncing || isInputFocused)
+            return;
+        if (e.Key == "F3")
+        {
+            _ = JS.InvokeVoidAsync("blazorFocus", productSearchRef);
+            return;
+        }
+        if (e.Key == "Escape")
+        {
+            productSearch = "";
+            StateHasChanged();
+            return;
+        }
+
+        if (e.Key == "F2")
+        {
+            _ = SaveBill();
+        }
+
+        if (selectedItem == null)
+            return;
+
+        if (e.Key == "+")
+        {
+            selectedItem.Qty += 1;
+        }
+        else if (e.Key == "-")
+        {
+            selectedItem.Qty = Math.Max(1, selectedItem.Qty - 1);
+        }
+        else if (e.Key == "Delete")
+        {
+            cart.Remove(selectedItem);
+            selectedItem = null;
+        }
+
+        StateHasChanged();
+    }
+
+    string GetProductImageUrl(LocalProduct p)
+    {
+        if (string.IsNullOrEmpty(p.ImagePath))
+            return "/images/no-image.png";
+
+        return p.ImagePath;
+    }
+
+   
+
+    void ShowSuccess(string message)
+    {
+        NotificationService.Notify(new NotificationMessage
+        {
+            Severity = NotificationSeverity.Success,
+            Summary = "Success",
+            Detail = message,
+            Duration = 2000
+        });
+    }
+    void ShowError(string message)
+    {
+        NotificationService.Notify(new NotificationMessage
+        {
+            Severity = NotificationSeverity.Error,
+            Summary = "Error",
+            Detail = message,
+            Duration = 4000
+        });
+    }
+
+
+    decimal ExpenseTotal =>
+    expenses
+        .Where(e => e.IsSelected)
+        .Sum(e => e.Bearer == "Customer"
+            ? e.CalculatedAmount
+            : -e.CalculatedAmount);
+
+    decimal GrandTotal =>
+        cart.Sum(x => x.LineTotal) + ExpenseTotal;
+}
