@@ -21,5 +21,8 @@ namespace FreshFalaye.Pos.Shared.Models
         public string? ImagePath { get; set; }
         public bool IsActive { get; set; }
         public bool UseWeighingScale { get; set; }
+
+        [NotMapped]
+        public string? Base64Image { get; set; }
     }
 }

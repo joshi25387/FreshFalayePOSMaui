@@ -280,7 +280,11 @@ namespace FreshFalaye.Pos.Shared.Services
                     {
                         ExpenseId= e.ExpenseId,
                         ExpenseName = e.ExpenseName,
-                        Amount = e.Amount
+                        Amount = e.Amount,
+                        RateType= e.RateType,
+                        Rate = e.Rate,
+                        AddDeduct = e.AddDeduct,
+                        Bearer = e.Bearer
                     }).ToList()
                 };
 
@@ -290,7 +294,7 @@ namespace FreshFalaye.Pos.Shared.Services
                 {
                     // ✅ Mark as uploaded ONLY after success
                     sale.IsUploaded = true;
-                    sale.UploadedAt = DateTime.UtcNow;
+                    sale.UploadedAt = DateTime.Now;
                     sale.IsSynced = true;
                     anyUpdated = true;                    
                 }                
@@ -341,14 +345,18 @@ namespace FreshFalaye.Pos.Shared.Services
                 {
                     ExpenseId = e.ExpenseId,
                     ExpenseName = e.ExpenseName,
-                    Amount = e.Amount
+                    Amount = e.Amount,
+                    RateType = e.RateType,
+                    Rate = e.Rate,
+                    AddDeduct = e.AddDeduct,
+                    Bearer = e.Bearer
                 }).ToList()
             };
 
             bool _isUploaded = await _api.UploadSaleAsync(dto);
 
             sale.IsUploaded = _isUploaded;
-            sale.UploadedAt = _isUploaded ? DateTime.UtcNow : null;
+            sale.UploadedAt = _isUploaded ? DateTime.Now : null;
             //sale.IsSynced = _isUploaded;
 
             await _db.SaveChangesAsync();

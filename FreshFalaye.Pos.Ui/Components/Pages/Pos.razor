@@ -218,8 +218,9 @@
                                 @if (!string.IsNullOrEmpty(p.ImagePath))
                                 {
                                     @* <img src="@p.ImagePath" /> *@
-                                    <img src="@GetProductImageUrl(p)"
-                                         onerror="this.src='/images/no-image.png'" />
+                                    <img src="@(p.Base64Image ?? "/images/no-image.png")" />
+                                    @* <img src="@GetProductImageUrl(p)"
+                                         onerror="this.src='/images/no-image.png'" /> *@
                                 }
                                 <div class="product-name">@p.ProductName</div>
                                 <div class="product-price">
@@ -452,6 +453,16 @@
         products = await Db.LocalProducts
             .Where(p => p.IsActive)
             .ToListAsync();
+
+
+        foreach (var p in products)
+        {
+            if (!string.IsNullOrEmpty(p.ImagePath) && File.Exists(p.ImagePath))
+            {
+                var bytes = File.ReadAllBytes(p.ImagePath);
+                p.Base64Image = $"data:image/jpeg;base64,{Convert.ToBase64String(bytes)}";
+            }
+        }
     }
     async Task SyncNow()
     {
@@ -587,6 +598,7 @@
     void RecalculateExpenses()
     {
         var productSubTotal = cart.Sum(x => x.Amount);
+        var totalQty = cart.Sum(x => x.Qty);
 
         foreach (var exp in expenses)
         {
@@ -597,14 +609,19 @@
             }
 
             decimal amount;
+            int sign = 1;//exp.AddDeduct.ToUpper() == "ADD" ? 1 : -1;
 
-            if (exp.RateType == "#")
+            if (exp.RateType == "%")
             {
-                amount = exp.Rate;
+                amount = sign * (productSubTotal * exp.Rate / 100);
+            }
+            else if (exp.RateType == "@")
+            {
+                amount = sign * (totalQty * exp.Rate);
             }
             else // %
             {
-                amount = productSubTotal * exp.Rate / 100;
+                amount = sign * exp.Rate;
             }
 
             // Always store positive amount

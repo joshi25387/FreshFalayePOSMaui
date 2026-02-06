@@ -116,12 +116,13 @@
                         <table class="table table-sm mb-0">
                             @foreach (var e in expenses)
                             {
+                                decimal _amt = e.AddDeduct == "Deduct" ? (-1 * e.Amount) : e.Amount;
                                 <tr>
                                     <td>@e.ExpenseName</td>
                                     <td>@e.Bearer</td>
                                     @* <td>@e.AddDeduct</td> *@
                                     <td class="text-end">
-                                        ₹ @e.AddDeduct == "Deduct" ? "-": "" + @e.Amount.ToString("0.00")
+                                        ₹ @_amt.ToString("0.00")
                                     </td>
                                 </tr>
                             }

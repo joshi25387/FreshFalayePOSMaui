@@ -1,5 +1,6 @@
 ﻿using FreshFalaye.Pos.Shared.Models;
 using FreshFalaye.Pos.Shared.Models.Dtos;
+using Newtonsoft.Json;
 using System.Net.Http;
 using System.Net.Http.Json;
 
@@ -80,6 +81,9 @@ namespace FreshFalaye.Pos.Shared.Services
             var _http = CreateClient();
             try
             {
+
+                var _jsonData = JsonConvert.SerializeObject(dto);
+
                 var url = $"api/sales/upload";
 
                 var response = await _http.PostAsJsonAsync(url, dto);
