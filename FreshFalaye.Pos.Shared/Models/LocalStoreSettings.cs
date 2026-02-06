@@ -20,6 +20,8 @@ namespace FreshFalaye.Pos.Shared.Models
         public string ReceiptLine4 { get; set; }
         public string ReceiptLine5 { get; set; }
         public string ReceiptLine6 { get; set; }
+        public string UpiId { get; set; }
+        public string UpiMerchantName { get; set; }
     }
 
 }

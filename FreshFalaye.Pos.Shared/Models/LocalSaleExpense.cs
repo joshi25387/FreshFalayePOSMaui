@@ -14,6 +14,7 @@ namespace FreshFalaye.Pos.Shared.Models
 
         public string RateType { get; set; } = null!; // # or %
         public decimal Rate { get; set; }
+        public string AddDeduct { get; set; }
 
         public decimal Amount { get; set; }   // Final calculated amount
 

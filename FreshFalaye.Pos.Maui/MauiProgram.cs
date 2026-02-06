@@ -37,11 +37,13 @@ namespace FreshFalaye.Pos.Maui
             builder.Services.AddHttpClient("Api", client =>
             {
                 client.BaseAddress = new Uri("https://freshfalaye-api-bjgkd4bdgaaaebd2.centralindia-01.azurewebsites.net");
+               //client.BaseAddress = new Uri("https://localhost:7032");
             }).AddHttpMessageHandler<AuthTokenHandler>();
 
             builder.Services.AddHttpClient("ApiAuth", client =>
             {
                 client.BaseAddress = new Uri("https://freshfalaye-api-bjgkd4bdgaaaebd2.centralindia-01.azurewebsites.net");
+               // client.BaseAddress = new Uri("https://localhost:7032");
             });
 
             // 🔹 Platform services
@@ -58,11 +60,12 @@ namespace FreshFalaye.Pos.Maui
             builder.Services.AddSingleton<ApiTokenStore>();
             builder.Services.AddScoped<BillNumberService>();
             builder.Services.AddScoped<PosSaleService>();
+            builder.Services.AddSingleton<ScaleService>();
 
-            #if WINDOWS
+#if WINDOWS
             builder.Services.AddSingleton<WindowsThermalPrinter>();
             builder.Services.AddScoped<IReceiptPrinter, MauiReceiptPrinter>();
-            #endif
+#endif
 
             builder.Services.AddScoped<ReceiptPdfService>();
 
@@ -75,13 +78,17 @@ namespace FreshFalaye.Pos.Maui
 
             builder.Services.AddSingleton(new ApiSettings
             {
-                BaseUrl = "https://your-api-base-url"
+                BaseUrl = "https://freshfalaye-api-bjgkd4bdgaaaebd2.centralindia-01.azurewebsites.net"
             });
 
             // 🔹 Local SQL Server DB
+            //builder.Services.AddDbContext<PosDbContext>(options =>
+            //    options.UseSqlServer(
+            //        "Server=DESKTOP-V3QC17D\\SQLEXPRESS;Database=FreshFalayePosDb;Trusted_Connection=True;TrustServerCertificate=True"));
+
             builder.Services.AddDbContext<PosDbContext>(options =>
                 options.UseSqlServer(
-                    "Server=DESKTOP-V3QC17D\\SQLEXPRESS;Database=FreshFalayePosDb;Trusted_Connection=True;TrustServerCertificate=True"));
+                    "Server=DESKTOP-02R0OHJ;Database=FreshFalayePosDb;Trusted_Connection=True;TrustServerCertificate=True"));
 
 
 

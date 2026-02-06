@@ -47,11 +47,18 @@ namespace FreshFalaye.Pos.Shared.Services
             // 3️⃣ Calculate totals
             var productSubTotal = cart.Sum(x => x.Amount);
             var gstTotal = cart.Sum(x => x.GstAmount);
-            var expenseTotal = expenses
-                .Where(e => e.Bearer == "Customer")
-                .Sum(e => e.Amount);
 
-            var grandTotal = productSubTotal + gstTotal + expenseTotal;
+            
+
+            decimal _expenseTotal = 0;
+            foreach (var _exp in expenses)
+            {
+                int sign = _exp.AddDeduct == "Deduct" ? -1 : 1;
+                _expenseTotal += sign * _exp.Amount;
+            }
+
+
+            var grandTotal = productSubTotal + gstTotal + _expenseTotal;
 
             // 4️⃣ Save sale header
             var sale = new LocalSale
@@ -63,7 +70,7 @@ namespace FreshFalaye.Pos.Shared.Services
                 CustomerName = customerName,
                 ProductSubTotal = productSubTotal,
                 GstTotal = gstTotal,
-                ExpenseTotal = expenseTotal,
+                ExpenseTotal = _expenseTotal,
                 GrandTotal = grandTotal
             };
 
@@ -138,7 +145,12 @@ namespace FreshFalaye.Pos.Shared.Services
                     Expenses = sale.Expenses.Select(e => new SaleExpenseUploadDto
                     {
                         ExpenseName = e.ExpenseName,
-                        Amount = e.Amount
+                        Amount = e.Amount,
+                        AddDeduct = e.AddDeduct,
+                        Bearer = e.Bearer,
+                        ExpenseId = e.ExpenseId,
+                        Rate = e.Rate,
+                        RateType = e.RateType
                     }).ToList()
                 };
 

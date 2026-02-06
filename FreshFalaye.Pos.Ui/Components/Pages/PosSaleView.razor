@@ -119,8 +119,9 @@
                                 <tr>
                                     <td>@e.ExpenseName</td>
                                     <td>@e.Bearer</td>
+                                    @* <td>@e.AddDeduct</td> *@
                                     <td class="text-end">
-                                        ₹ @e.Amount.ToString("0.00")
+                                        ₹ @e.AddDeduct == "Deduct" ? "-": "" + @e.Amount.ToString("0.00")
                                     </td>
                                 </tr>
                             }

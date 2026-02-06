@@ -36,6 +36,11 @@
         public Guid ExpenseId { get; set; }
         public string ExpenseName { get; set; } = "";
         public decimal Amount { get; set; }
+        public string RateType { get; set; } = null!; // # or %
+        public decimal Rate { get; set; }
+        public string AddDeduct { get; set; }
+        public string Bearer { get; set; }
+
     }
 
 }

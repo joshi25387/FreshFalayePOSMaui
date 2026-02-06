@@ -19,5 +19,6 @@ namespace FreshFalaye.Pos.Shared.Models
         public decimal Amount => Qty * Rate;
         public decimal GstAmount => Amount * GstPercent / 100;
         public decimal LineTotal => Amount + GstAmount;
+        public bool UseWeighingScale { get; set; }
     }
 }

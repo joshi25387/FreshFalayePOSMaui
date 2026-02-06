@@ -194,7 +194,12 @@ namespace FreshFalaye.Pos.Shared.Services
 
             // ===== EXPENSES =====
             foreach (var e in sale.Expenses)
-                b.AddRange(Text(LeftRight(e.ExpenseName, e.Amount.ToString("0.00"))));
+            {
+                int sign = e.AddDeduct == "Deduct" ? -1 : 1;
+                decimal _amt = sign * e.Amount;                
+                b.AddRange(Text(LeftRight(e.ExpenseName, _amt.ToString("0.00"))));
+            }
+                
 
             if (sale.Expenses.Any())
                 b.AddRange(Text(Line()));
@@ -209,7 +214,7 @@ namespace FreshFalaye.Pos.Shared.Services
 
             // ===== SAVINGS =====
             decimal mrp = sale.Items.Sum(i => i.Mrp * i.Qty);
-            decimal saleTotal = sale.Items.Sum(i => i.Rate * i.Qty);
+            decimal saleTotal = sale.GrandTotal;// sale.Items.Sum(i => i.Rate * i.Qty);
 
             b.AddRange(Text(LeftRight("TOTAL (MRP)", mrp.ToString("0.00"))));
             b.AddRange(Text(LeftRight("TOTAL (SALE)", saleTotal.ToString("0.00"))));
@@ -221,7 +226,29 @@ namespace FreshFalaye.Pos.Shared.Services
             b.AddRange(Text(Line()));
 
             // ===== PAYMENT =====
-            b.AddRange(Text($"PAYMENT : {sale.PaymentMode}"));
+            b.AddRange(Text($"PAYMENT : {sale.PaymentMode}"));            
+
+            // ===== UPI QR PAYMENT =====
+            if (!string.IsNullOrWhiteSpace(store.UpiId))
+            {
+                string upi =
+                    $"upi://pay?pa={store.UpiId}" +
+                    $"&pn={Uri.EscapeDataString(store.UpiMerchantName)}" +
+                    $"&am={sale.GrandTotal:0.00}" +
+                    $"&cu=INR" +
+                    $"&tn=Bill-{sale.BillNo}";
+
+                b.AddRange(Text(Line()));
+                b.AddRange(AlignCenter);
+                b.AddRange(BoldOn);
+                b.AddRange(Text("Scan & Pay UPI"));
+                b.AddRange(BoldOff);
+
+                b.AddRange(QrCode(upi));
+
+                b.AddRange(Text($"UPI: {store.UpiId}"));
+                b.AddRange(AlignLeft);
+            }
             b.AddRange(Text(Line()));
 
             // ===== FOOTER =====
@@ -256,5 +283,32 @@ namespace FreshFalaye.Pos.Shared.Services
         {
             return ENC.GetString(Build(store, sale));
         }
+
+        // ================= QR CODE =================
+        static byte[] QrCode(string text)
+        {
+            var bytes = new List<byte>();
+            var data = Encoding.ASCII.GetBytes(text);
+
+            // Model 2
+            bytes.AddRange(new byte[] { 0x1D, 0x28, 0x6B, 0x04, 0x00, 0x31, 0x41, 0x32, 0x00 });
+
+            // Size (6 = good for 80mm)
+            bytes.AddRange(new byte[] { 0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x43, 0x04 });
+
+            // Error correction (M)
+            bytes.AddRange(new byte[] { 0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x45, 0x31 });
+
+            // Store data
+            int len = data.Length + 3;
+            bytes.AddRange(new byte[] { 0x1D, 0x28, 0x6B, (byte)(len % 256), (byte)(len / 256), 0x31, 0x50, 0x30 });
+            bytes.AddRange(data);
+
+            // Print
+            bytes.AddRange(new byte[] { 0x1D, 0x28, 0x6B, 0x03, 0x00, 0x31, 0x51, 0x30 });
+
+            return bytes.ToArray();
+        }
+
     }
 }

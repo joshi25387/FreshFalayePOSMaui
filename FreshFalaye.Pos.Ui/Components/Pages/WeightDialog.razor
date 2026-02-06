@@ -1,0 +1,84 @@
+﻿@using Radzen
+@inject ScaleService Scale
+@inject DialogService DialogService
+@inject PosDbContext Db
+@implements IDisposable
+<div class="p-3">
+
+    <h5>Enter Weight</h5>
+
+    <RadzenNumeric @bind-Value="Weight" ReadOnly="true"
+                   Step="0.001"
+                   Style="width:100%" />
+
+    <div class="mt-3 text-end">
+        <RadzenButton Text="Cancel"
+                      ButtonStyle="ButtonStyle.Secondary"
+                      Click="@Cancel" />
+
+        <RadzenButton Text="OK"
+                      ButtonStyle="ButtonStyle.Primary"
+                      Click="@Ok"
+                      Class="ms-2" />
+    </div>
+
+</div>
+
+@code {
+    string WeightText = "0.000";
+    [Parameter] public decimal Weight { get; set; } = 0;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var setting = await Db.LocalSettings.FirstAsync();
+
+            string _comPortName = "COM4";
+            int _baudRate = 9600;
+
+            if (setting != null)
+            {
+                _comPortName = setting.WeighingScaleComPortName;
+                _baudRate = setting.WeighingScaleBudRate;
+            }
+
+            Scale.WeightReceived += OnWeight;
+            Scale.Start(_comPortName,_baudRate);
+        }
+        catch (Exception)
+        {
+        }        
+    }
+
+
+    void Ok()
+    {
+        if (Weight <= 0)
+        {
+            return;    
+        }
+        DialogService.Close(Weight);
+    }
+
+    void Cancel()
+    {
+        DialogService.Close(null);
+    }
+
+    public void Dispose()
+    {
+        Scale.WeightReceived -= OnWeight;
+        Scale.Stop();
+    }
+
+    private void OnWeight(decimal weight)
+    {
+        InvokeAsync(() =>
+        {
+            Weight = weight;
+            WeightText = weight.ToString("0.000");
+            StateHasChanged();
+        });
+    }
+}

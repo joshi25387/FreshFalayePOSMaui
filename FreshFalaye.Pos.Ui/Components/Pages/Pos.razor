@@ -7,7 +7,7 @@
 
 
 
-
+@inject DialogService DialogService
 @inject PosDbContext Db
 @inject BillNumberService BillNoService
 @inject PosApiService Api
@@ -19,7 +19,9 @@
 @inject ApiSettings ApiSettings
 @inject IJSRuntime JS
 
+
 <RadzenNotification />
+<RadzenDialog />
 
 <div tabindex="0"
      @onkeydown="HandleKeyDown"
@@ -52,6 +54,7 @@
 
                     <div class="col-md-4 text-center">
                         <b>Bill No:</b> @billNo
+                        @* <b>Weight:</b> @WeightText *@
                     </div>
 
                     <div class="col-md-4 text-end">
@@ -264,6 +267,7 @@
                                             
                                             <td>
                                                 <input type="number"
+                                                       disabled = "@item.UseWeighingScale"
                                                        class="form-control form-control-sm"
                                                        step="@(item.DecimalAllowed ? "0.001" : "1")"
                                                        value="@item.Qty"
@@ -373,6 +377,7 @@
         public string RateType { get; set; } = null!;
         public decimal Rate { get; set; }
         public string Bearer { get; set; } = null!;
+        public string AddDeduct { get; set; }
         public bool IsSelected { get; set; }
         public decimal CalculatedAmount { get; set; }
     }
@@ -386,10 +391,12 @@
     ElementReference customerMobileRef;
     ElementReference customerNameRef;
 
+
+
     // ================= SALE HEADER =================
     DateTime saleDate = DateTime.Today;
     string billNo = "";
-    string paymentMode = "Cash";
+    string paymentMode = "UPI";
     string? customerMobile;
     string? customerName;
 
@@ -409,10 +416,10 @@
     List<LocalProduct> products = new();
     List<CartItem> cart = new();
 
-  //   IEnumerable<LocalProduct> FilteredProducts =>
-  // selectedGroupId == 0
-  //     ? products
-  //     : products.Where(p => p.ProductGroupId == selectedGroupId);
+    //   IEnumerable<LocalProduct> FilteredProducts =>
+    // selectedGroupId == 0
+    //     ? products
+    //     : products.Where(p => p.ProductGroupId == selectedGroupId);
 
     IEnumerable<LocalProduct> FilteredProducts =>
       products.Where(p =>
@@ -431,7 +438,10 @@
         await LoadProducts();
         await LoadExpenses();
 
+
     }
+
+
 
     async Task LoadProductGroups()
     {
@@ -475,11 +485,13 @@
             await LoadProducts();
             await LoadExpenses();
 
-            success = "Sync completed successfully";
+            ShowSuccess($"Sync completed successfully");
+
+            //success = "Sync completed successfully";
         }
         catch (Exception ex)
         {
-            error = $"Sync failed: {ex.Message}";
+            ShowError($"Sync failed: {ex.Message}");            
         }
         finally
         {
@@ -555,7 +567,8 @@
                                 ExpenseName = e.ExpenseName,
                                 RateType = e.RateType,
                                 Rate = e.Rate,
-                                Bearer = e.Bearer
+                                Bearer = e.Bearer,
+                                AddDeduct = e.AddDeduct
                             }).ToListAsync();
         // var apiExpenses = await Api.GetSaleExpensesAsync();
 
@@ -599,29 +612,73 @@
     }
 
     // ================= CART LOGIC =================
-    void AddToCart(LocalProduct product)
+    async Task AddToCart(LocalProduct product)
     {
         var existing = cart.FirstOrDefault(x => x.ProductId == product.ProductId);
 
-        if (existing != null)
+        if (product.UseWeighingScale)
         {
-            existing.Qty += 1;
+            var result = await DialogService.OpenAsync<WeightDialog>(
+            "Weight",
+            new Dictionary<string, object>(),
+            new DialogOptions
+            {
+                Width = "300px",
+                CloseDialogOnOverlayClick = false
+            });
+
+            if (result == null)
+                return;
+
+            var _qty = (decimal)result;
+
+            if (existing != null)
+            {
+                existing.Qty += _qty;
+            }
+            else
+            {
+                cart.Add(new CartItem
+                {
+                    ProductId = product.ProductId,
+                    ProductName = product.ProductName,
+                    UnitCode = product.UnitCode,
+                    DecimalAllowed = product.DecimalAllowed,
+                    Qty = _qty,
+                    Mrp = product.Mrp,
+                    Discount = product.Discount,
+                    Rate = product.SalePrice,
+                    GstPercent = product.GstPercent,
+                    UseWeighingScale = product.UseWeighingScale
+                });
+            }
         }
         else
         {
-            cart.Add(new CartItem
+            if (existing != null)
             {
-                ProductId = product.ProductId,
-                ProductName = product.ProductName,
-                UnitCode = product.UnitCode,
-                DecimalAllowed = product.DecimalAllowed,
-                Qty = 1,
-                Mrp = product.Mrp,
-                Discount = product.Discount,
-                Rate = product.SalePrice,
-                GstPercent = product.GstPercent
-            });
+                existing.Qty += 1;
+            }
+            else
+            {
+                cart.Add(new CartItem
+                {
+                    ProductId = product.ProductId,
+                    ProductName = product.ProductName,
+                    UnitCode = product.UnitCode,
+                    DecimalAllowed = product.DecimalAllowed,
+                    Qty = 1,
+                    Mrp = product.Mrp,
+                    Discount = product.Discount,
+                    Rate = product.SalePrice,
+                    GstPercent = product.GstPercent,
+                    UseWeighingScale = product.UseWeighingScale
+                });
+            }            
         }
+        
+
+        
         RecalculateExpenses();
     }
 
@@ -674,7 +731,8 @@
                     RateType = x.RateType,
                     Rate = x.Rate,
                     Amount = x.CalculatedAmount,
-                    Bearer = x.Bearer
+                    Bearer = x.Bearer,
+                    AddDeduct = x.AddDeduct
                 })
                 .ToList();
 
