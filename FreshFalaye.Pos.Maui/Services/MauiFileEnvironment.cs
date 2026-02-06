@@ -7,10 +7,10 @@ namespace FreshFalaye.Pos.Maui.Services
         public string ImagesPath =>
             Path.Combine(FileSystem.AppDataDirectory, "images", "products");
 
+
         public string BlazorImagesPath =>
             Path.Combine(
-                FileSystem.AppDataDirectory,
-                "wwwroot",
+                FileSystem.AppDataDirectory,               
                 "images",
                 "products");
     }

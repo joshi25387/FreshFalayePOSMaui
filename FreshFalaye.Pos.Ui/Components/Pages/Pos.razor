@@ -560,7 +560,7 @@
     }
     async Task LoadExpenses()
     {
-        expenses = await Db.LocalExpenseMaster.Where(e => e.IsActive)
+        var _localExpenses = await Db.LocalExpenseMaster.Where(e => e.IsActive)
                             .Select(e => new ExpenseVm
                             {
                                 ExpenseId = e.Id,
@@ -570,6 +570,8 @@
                                 Bearer = e.Bearer,
                                 AddDeduct = e.AddDeduct
                             }).ToListAsync();
+
+        expenses = _localExpenses;
         // var apiExpenses = await Api.GetSaleExpensesAsync();
 
         // expenses = apiExpenses.Select(e => new ExpenseVm
@@ -822,7 +824,13 @@
         if (string.IsNullOrEmpty(p.ImagePath))
             return "/images/no-image.png";
 
-        return p.ImagePath;
+        var bytes = File.ReadAllBytes(p.ImagePath);
+        var base64 = Convert.ToBase64String(bytes);
+
+        return $"data:image/jpeg;base64,{base64}";
+
+        //return p.ImagePath;
+        //return $"file:///{p.ImagePath.Replace("\\", "/")}";
     }
 
    

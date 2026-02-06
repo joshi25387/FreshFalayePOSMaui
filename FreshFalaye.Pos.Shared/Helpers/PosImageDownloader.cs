@@ -14,7 +14,7 @@ namespace FreshFalaye.Pos.Shared.Helpers
             _http = http;
         }
 
-
+        
         public async Task<string?> DownloadImageAsync(string imageUrl, string fileName)
         {
             if (string.IsNullOrWhiteSpace(imageUrl))
@@ -54,7 +54,7 @@ namespace FreshFalaye.Pos.Shared.Helpers
                 // 3️⃣ If already available for Blazor, reuse
                 if (File.Exists(blazorFilePath))
                 {
-                    return $"images/products/{fileName}";
+                    return blazorFilePath;// $"images/products/{fileName}";
                 }
 
                 // 4️⃣ Download only if missing
@@ -73,7 +73,7 @@ namespace FreshFalaye.Pos.Shared.Helpers
                 File.Copy(downloadedFilePath, blazorFilePath, overwrite: true);
 
                 // 6️⃣ Return Blazor-safe relative URL
-                return $"images/products/{fileName}";
+                return blazorFilePath;// $"images/products/{fileName}";
             }
             catch
             {
