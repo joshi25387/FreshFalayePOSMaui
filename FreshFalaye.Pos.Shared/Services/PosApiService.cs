@@ -82,7 +82,7 @@ namespace FreshFalaye.Pos.Shared.Services
             try
             {
 
-                var _jsonData = JsonConvert.SerializeObject(dto);
+                //var _jsonData = JsonConvert.SerializeObject(dto);
 
                 var url = $"api/sales/upload";
 
