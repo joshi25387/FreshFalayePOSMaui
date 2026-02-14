@@ -100,7 +100,7 @@ namespace FreshFalaye.Pos.Shared.Services
                     .FirstAsync(x => x.ProductId == item.ProductId);
 
                 stock.Qty -= item.Qty;
-                stock.LastUpdatedAt = DateTime.UtcNow;
+                stock.LastUpdatedAt = DateTime.Now;
             }
 
             // 6️⃣ Save expenses
@@ -159,7 +159,7 @@ namespace FreshFalaye.Pos.Shared.Services
                 if (success)
                 {
                     sale.IsUploaded = true;
-                    sale.UploadedAt = DateTime.UtcNow;
+                    sale.UploadedAt = DateTime.Now;
                     await _db.SaveChangesAsync();
                 }
             }

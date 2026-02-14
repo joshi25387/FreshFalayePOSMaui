@@ -1,7 +1,7 @@
 ﻿@using Radzen
 @inject ScaleService Scale
 @inject DialogService DialogService
-@inject PosDbContext Db
+@* @inject PosDbContext Db *@
 @implements IDisposable
 <div class="p-3">
 
@@ -28,28 +28,33 @@
     string WeightText = "0.000";
     [Parameter] public decimal Weight { get; set; } = 0;
 
-    protected override async Task OnInitializedAsync()
+    protected override void OnInitialized()
     {
-        try
-        {
-            var setting = await Db.LocalSettings.FirstAsync();
-
-            string _comPortName = "COM4";
-            int _baudRate = 9600;
-
-            if (setting != null)
-            {
-                _comPortName = setting.WeighingScaleComPortName;
-                _baudRate = setting.WeighingScaleBudRate;
-            }
-
-            Scale.WeightReceived += OnWeight;
-            Scale.Start(_comPortName,_baudRate);
-        }
-        catch (Exception)
-        {
-        }        
+        Scale.WeightReceived += OnWeight;
     }
+
+    // protected override async Task OnInitializedAsync()
+    // {
+    //     try
+    //     {
+    //         var setting = await Db.LocalSettings.FirstAsync();
+
+    //         string _comPortName = "COM4";
+    //         int _baudRate = 9600;
+
+    //         if (setting != null)
+    //         {
+    //             _comPortName = setting.WeighingScaleComPortName;
+    //             _baudRate = setting.WeighingScaleBudRate;
+    //         }
+
+    //         Scale.WeightReceived += OnWeight;
+    //         Scale.Start(_comPortName,_baudRate);
+    //     }
+    //     catch (Exception)
+    //     {
+    //     }        
+    // }
 
 
     void Ok()
@@ -69,7 +74,7 @@
     public void Dispose()
     {
         Scale.WeightReceived -= OnWeight;
-        Scale.Stop();
+        //Scale.Stop();
     }
 
     private void OnWeight(decimal weight)

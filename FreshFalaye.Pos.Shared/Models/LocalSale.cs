@@ -32,6 +32,7 @@ namespace FreshFalaye.Pos.Shared.Models
         // 🔴 UPLOAD TRACKING
         public bool IsUploaded { get; set; } = false;
         public DateTime? UploadedAt { get; set; }
+        public long SyncVersion { get; set; }
 
         public ICollection<LocalSaleItem> Items { get; set; }
         = new List<LocalSaleItem>();

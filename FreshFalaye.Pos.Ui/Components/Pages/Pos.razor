@@ -6,7 +6,7 @@
 
 
 
-
+@inject ScaleService Scale
 @inject DialogService DialogService
 @inject PosDbContext Db
 @inject BillNumberService BillNoService
@@ -91,6 +91,10 @@
                                 @onclick='() => Nav.NavigateTo("/pos-day-summary")'>
                             <b style="color:#ef8993">📊 Day Summary</b>
                         </button>
+                        <button class="btn btn-sm btn-outline-secondary me-1"
+                                @onclick='() => Nav.NavigateTo("/unsynced-sales")'>
+                            <b style="color:#ef8993">📊 Unsynced Sales</b>
+                        </button>
 
                     </div>
                 </div>
@@ -140,23 +144,51 @@
 
             <div class="col-md-2">
                 <label>Payment</label>
-                <select class="form-select form-select-sm"
+                <select class="form-select form-select-sm" @ref="paymentModeRef"
                         @onfocusin="() => isInputFocused = true"
                         @onfocusout="() => isInputFocused = false"
                         @bind="paymentMode">
+                    <option></option>
                     <option>Cash</option>
-                    <option selected>UPI</option>
+                    <option>UPI</option>
                     <option>Card</option>
                 </select>
             </div>
 
             <div class="col-md-3">
                 <label>Customer Mobile</label>
-                <input class="form-control form-control-sm"
+               @*  <input class="form-control form-control-sm"
                        @ref="customerMobileRef"
                        @onfocusin="() => isInputFocused = true"
                        @onfocusout="() => isInputFocused = false"
-                       @bind="customerMobile" />
+                       @bind="customerMobile" /> *@
+
+
+                <div style="position:relative;">
+                    <input class="form-control form-control-sm"
+                           @ref="customerMobileRef"
+                           @bind="customerMobile"
+                           @bind:event="oninput"
+                           @bind:after="OnMobileInput"
+                           @onfocusin="() => isInputFocused = true"
+                           @onfocusout="HideMobileSuggestionsDelayed" />
+
+
+                    @if (showMobileSuggestions && mobileSuggestions.Any())
+                    {
+                        <div class="pos-suggestion-box">
+                            @for (int i = 0; i < mobileSuggestions.Count; i++)
+                            {
+                                var s = mobileSuggestions[i];
+
+                                <div class="pos-suggestion-item @(i == selectedSuggestionIndex ? "active" : "")"
+                                     @onclick="() => SelectMobileSuggestion(s.Mobile, s.Name)">
+                                    <b>@s.Mobile</b> - @s.Name
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
             </div>
 
             <div class="col-md-3">
@@ -225,6 +257,9 @@
                                 <div class="product-name">@p.ProductName</div>
                                 <div class="product-price">
                                     ₹ @p.SalePrice / @p.UnitCode
+                                </div>
+                                <div class="product-stock @(p.AvailableQty <= 0 ? "out-of-stock" : "")">
+                                    Stock: @p.AvailableQty.ToString("0.##")
                                 </div>
                             </div>
                         </div>
@@ -391,15 +426,18 @@
 
     ElementReference customerMobileRef;
     ElementReference customerNameRef;
+    ElementReference paymentModeRef;
 
 
 
     // ================= SALE HEADER =================
     DateTime saleDate = DateTime.Today;
     string billNo = "";
-    string paymentMode = "UPI";
+    string paymentMode = "";
     string? customerMobile;
     string? customerName;
+
+    int selectedSuggestionIndex = -1;
 
     List<LocalProductGroup> productGroups = new();
     Guid selectedGroupId = Guid.Empty;
@@ -412,6 +450,10 @@
     CartItem? selectedItem;
 
     ElementReference productSearchRef;
+
+
+    List<(string Mobile, string Name)> mobileSuggestions = new();
+    bool showMobileSuggestions = false;
 
     // ================= DATA =================
     List<LocalProduct> products = new();
@@ -433,6 +475,25 @@
     {
         Auth.AuthStateChanged += OnAuthStateChanged;
 
+        var setting = await Db.LocalSettings.FirstOrDefaultAsync();
+
+        string port = setting?.WeighingScaleComPortName ?? "COM4";
+        int baud = setting?.WeighingScaleBudRate ?? 9600;
+
+        if (!Scale.IsRunning)
+        {
+            try
+            {
+                Scale.Start(port, baud);
+            }
+            catch (Exception)
+            {
+                ShowError("Weighing machine not started. Please check if it si connected or not.");
+            }            
+        }
+
+
+
         billNo = await BillNoService.PeekNextBillNoAsync();
 
         await LoadProductGroups();
@@ -442,19 +503,85 @@
 
     }
 
+    async Task OnMobileInput()
+    {
+        if (string.IsNullOrWhiteSpace(customerMobile) ||
+            customerMobile.Length < 3)
+        {
+            mobileSuggestions.Clear();
+            showMobileSuggestions = false;
+            return;
+        }
+
+        var matches = await Db.LocalSales
+            .Where(x => x.CustomerMobile != null &&
+                        x.CustomerMobile.Contains(customerMobile))
+            .GroupBy(x => new { x.CustomerMobile, x.CustomerName })
+            .Select(g => new
+            {
+                Mobile = g.Key.CustomerMobile,
+                Name = g.Key.CustomerName
+            })
+            .OrderBy(x => x.Mobile)
+            .Take(5)
+            .ToListAsync();
+
+        mobileSuggestions = matches
+            .Select(x => (x.Mobile!, x.Name!))
+            .ToList();
+
+        showMobileSuggestions = mobileSuggestions.Any();
+        selectedSuggestionIndex = -1;
+    }
+
+
+    async Task HideMobileSuggestionsDelayed()
+    {
+        await Task.Delay(200);
+        showMobileSuggestions = false;
+    }
+
+    void SelectMobileSuggestion(string mobile, string name)
+    {
+        customerMobile = mobile;
+        customerName = name;
+
+        mobileSuggestions.Clear();
+        showMobileSuggestions = false;
+    }
+
+
 
 
     async Task LoadProductGroups()
     {
         productGroups = await Db.LocalProductGroups.Where(p => p.IsActive).ToListAsync();
     }
+
+
     async Task LoadProducts()
     {
-        products = await Db.LocalProducts
-            .Where(p => p.IsActive)
-            .ToListAsync();
+        var productsWithStock = await (
+            from p in Db.LocalProducts
+            where p.IsActive
+            join s in Db.LocalStocks
+                on p.ProductId equals s.ProductId
+                into stockGroup
+            from s in stockGroup.DefaultIfEmpty()
+            select new
+            {
+                Product = p,
+                StockQty = s != null ? s.Qty : 0
+            }
+        ).ToListAsync();
 
+        products = productsWithStock.Select(x =>
+        {
+            x.Product.AvailableQty = x.StockQty;
+            return x.Product;
+        }).ToList();
 
+        // Load images
         foreach (var p in products)
         {
             if (!string.IsNullOrEmpty(p.ImagePath) && File.Exists(p.ImagePath))
@@ -464,6 +591,25 @@
             }
         }
     }
+
+
+
+    // async Task LoadProducts()
+    // {
+    //     products = await Db.LocalProducts
+    //         .Where(p => p.IsActive)
+    //         .ToListAsync();
+
+
+    //     foreach (var p in products)
+    //     {
+    //         if (!string.IsNullOrEmpty(p.ImagePath) && File.Exists(p.ImagePath))
+    //         {
+    //             var bytes = File.ReadAllBytes(p.ImagePath);
+    //             p.Base64Image = $"data:image/jpeg;base64,{Convert.ToBase64String(bytes)}";
+    //         }
+    //     }
+    // }
     async Task SyncNow()
     {
         if (isSyncing)
@@ -486,11 +632,14 @@
             //await SyncService.SyncSalesToServerAsync();
 
             await SyncService.SyncSalesAsync(setting.BranchId);
-            await SyncService.SyncStockAsync(setting.BranchId);
 
             await SyncService.SyncProductGroupsAsync();
             await SyncService.SyncProductsAsync(setting.BranchId);
             await SyncService.SyncExpenses();
+            await SyncService.DownloadUpdatedSalesAsync();
+            await SyncService.SyncStockAsync(setting.BranchId);
+
+            
 
             await LoadProductGroups();
             await LoadProducts();
@@ -522,6 +671,7 @@
     public void Dispose()
     {
         Auth.AuthStateChanged -= OnAuthStateChanged;
+        Scale.Stop();
     }
     void SelectGroup(Guid groupId)
     {
@@ -549,7 +699,7 @@
 
         if (firstRender)
         {
-            await JS.InvokeVoidAsync("blazorFocus", customerMobileRef);
+            await JS.InvokeVoidAsync("blazorFocus", paymentModeRef);
             // billNo = await BillNoService.PeekNextBillNoAsync();
 
             // productGroups = await Db.LocalProductGroups.Where(p => p.IsActive).ToListAsync();
@@ -695,9 +845,9 @@
                 });
             }            
         }
-        
 
-        
+
+
         RecalculateExpenses();
     }
 
@@ -721,6 +871,12 @@
             {
                 ShowError("Select Date");
                 return;                
+            }
+            if(string.IsNullOrWhiteSpace(paymentMode))
+            {
+                await JS.InvokeVoidAsync("blazorFocus", paymentModeRef);
+                ShowError("Salect Payment Mode");
+                return;
             }
             if (string.IsNullOrWhiteSpace(customerMobile))
             {
@@ -774,12 +930,19 @@
 
             customerMobile = "";
             customerName = "";
-            paymentMode = "Cash";
+            paymentMode = "";
 
             // Generate next bill number
             billNo = await BillNoService.GenerateNextBillNoAsync();
 
-            ShowSuccess($"Bill saved successfully (Sale #{saleId})");            
+            ShowSuccess($"Bill saved successfully (Sale #{saleId})");  
+            
+            foreach (var item in cart)
+            {
+                var prod = products.FirstOrDefault(p => p.ProductId == item.ProductId);
+                if (prod != null)
+                    prod.AvailableQty -= item.Qty;
+            }
 
             //Nav.NavigateTo($"/receipt/{saleId}", true);
             await ReceiptPrinter.PrintAsync(saleId);
@@ -787,7 +950,7 @@
             //         "printReceipt",
             //         $"/receipt/{saleId}"
             //     );
-           await JS.InvokeVoidAsync("blazorFocus", customerMobileRef);
+            await JS.InvokeVoidAsync("blazorFocus", paymentModeRef);
         }
         catch (Exception ex)
         {
@@ -797,6 +960,49 @@
 
     void HandleKeyDown(KeyboardEventArgs e)
     {
+        if (showMobileSuggestions && mobileSuggestions.Any())
+        {
+            if (e.Key == "ArrowDown")
+            {
+                selectedSuggestionIndex++;
+                if (selectedSuggestionIndex >= mobileSuggestions.Count)
+                    selectedSuggestionIndex = 0;
+
+                StateHasChanged();
+                return;
+            }
+
+            if (e.Key == "ArrowUp")
+            {
+                selectedSuggestionIndex--;
+                if (selectedSuggestionIndex < 0)
+                    selectedSuggestionIndex = mobileSuggestions.Count - 1;
+
+                StateHasChanged();
+                return;
+            }
+
+            if (e.Key == "Enter")
+            {
+                if (selectedSuggestionIndex >= 0 &&
+                    selectedSuggestionIndex < mobileSuggestions.Count)
+                {
+                    var s = mobileSuggestions[selectedSuggestionIndex];
+                    SelectMobileSuggestion(s.Mobile, s.Name);
+                }
+
+                return;
+            }
+
+            if (e.Key == "Escape")
+            {
+                showMobileSuggestions = false;
+                selectedSuggestionIndex = -1;
+                StateHasChanged();
+                return;
+            }
+        }
+
         if (isSyncing || isInputFocused)
             return;
         if (e.Key == "F3")
@@ -832,6 +1038,10 @@
             cart.Remove(selectedItem);
             selectedItem = null;
         }
+
+
+        
+
 
         StateHasChanged();
     }

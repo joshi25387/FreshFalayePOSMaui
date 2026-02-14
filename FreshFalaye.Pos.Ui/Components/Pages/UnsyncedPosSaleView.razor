@@ -1,0 +1,252 @@
+﻿@page "/unsynced-pos-sale-view/{SaleId:long}"
+@* @rendermode InteractiveServer *@
+@inject IReceiptPrinter ReceiptPrinter
+@using Microsoft.EntityFrameworkCore
+@inject PosDbContext Db
+@inject NavigationManager Nav
+@inject PosSyncService SyncService
+@inject PosAuthService Auth
+@inject IJSRuntime JS
+
+<div class="container-fluid">
+
+
+    @if (isSyncing)
+    {
+        <div class="pos-sync-overlay">
+            <div class="sync-box">
+                <div class="spinner-border text-light mb-3" role="status"></div>
+                <h5>Syncing .…</h5>
+                <p>Please wait</p>
+            </div>
+        </div>
+    }
+    else
+    {
+        <!-- HEADER -->
+        <div class="row pos-header align-items-center mb-2">
+            <div class="col-md-6">
+                <b>🧾 Sale Details</b>
+            </div>
+            <div class="col-md-6 text-end">
+                <button class="btn btn-sm btn-secondary me-2"
+                        @onclick="Back">
+                    ⬅ Back
+                </button>
+                <button class="btn btn-sm btn-warning me-2"
+                        disabled="@isSyncing"
+                        @onclick="SyncThisSale">
+                    @(isSyncing ? "Syncing..." : "🔄 Sync")
+                </button>
+                <button class="btn btn-sm btn-primary"
+                        @onclick="Print">
+                    🖨 Print
+                </button>
+            </div>
+        </div>
+
+        @if (sale == null)
+        {
+            <p class="text-danger">Sale not found</p>
+        }
+        else
+        {
+            <!-- SALE HEADER -->
+            <div class="card mb-2">
+                <div class="card-body py-2">
+                    <div class="row">
+                        <div class="col-md-3"><b>Bill No:</b> @sale.BillNo</div>
+                        <div class="col-md-3"><b>Date:</b> @sale.SaleDate</div>
+                        <div class="col-md-3"><b>Payment:</b> @sale.PaymentMode</div>
+                        <div class="col-md-3">
+                            <b>Total:</b> ₹ @sale.GrandTotal.ToString("0.00")
+                        </div>
+                    </div>
+                    <div class="row mt-1">
+                        <div class="col-md-6">
+                            <b>Customer:</b>
+                            @(sale.CustomerName ?? "-")
+                        </div>
+                        <div class="col-md-6">
+                            <b>Mobile:</b>
+                            @(sale.CustomerMobile ?? "-")
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ITEMS -->
+            <div class="card mb-2">
+                <div class="card-header py-1">
+                    <b>Items</b>
+                </div>
+                <div class="card-body p-1">
+                    <table class="table table-sm table-bordered mb-0">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Item</th>
+                                <th width="70">Qty</th>
+                                <th width="80">Rate</th>
+                                <th width="90">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var i in lines)
+                            {
+                                <tr>
+                                    <td>@i.ProductName</td>
+                                    <td>@i.Qty</td>
+                                    <td>@i.Rate.ToString("0.00")</td>
+                                    <td>@i.LineTotal.ToString("0.00")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- EXPENSES -->
+            @if (expenses.Any())
+            {
+                <div class="card mb-2">
+                    <div class="card-header py-1">
+                        <b>Expenses</b>
+                    </div>
+                    <div class="card-body p-1">
+                        <table class="table table-sm mb-0">
+                            @foreach (var e in expenses)
+                            {
+                                decimal _amt = e.AddDeduct == "Deduct" ? (-1 * e.Amount) : e.Amount;
+                                <tr>
+                                    <td>@e.ExpenseName</td>
+                                    <td>@e.Bearer</td>
+                                    @* <td>@e.AddDeduct</td> *@
+                                    <td class="text-end">
+                                        ₹ @_amt.ToString("0.00")
+                                    </td>
+                                </tr>
+                            }
+                        </table>
+                    </div>
+                </div>
+            }
+        }
+
+
+    }
+
+
+</div>
+
+@code {
+
+    bool isSyncing = false;
+    string? error;
+    string? success;
+
+    [Parameter] public long SaleId { get; set; }
+
+    LocalSale? sale;
+    List<LocalSaleItem> lines = new();
+    List<LocalSaleExpense> expenses = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        sale = await Db.LocalSales
+            .FirstOrDefaultAsync(x => x.LocalSaleId == SaleId);
+
+        if (sale == null)
+            return;
+
+        lines = await Db.LocalSaleItems
+            .Where(x => x.LocalSaleId == SaleId)
+            .ToListAsync();
+
+        expenses = await Db.LocalSaleExpenses
+            .Where(x => x.LocalSaleId == SaleId)
+            .ToListAsync();
+    }
+
+    async Task SyncThisSale()
+    {
+        if (sale == null || isSyncing)
+            return;
+
+        await Auth.GetApiToken();
+        await Auth.RestoreApiTokenAsync();
+
+        isSyncing = true;
+        error = null;
+        success = null;
+        StateHasChanged();
+
+        try
+        {
+            var setting = await Db.LocalSettings.FirstAsync();
+            var branchId = setting.BranchId;
+
+            // 1️⃣ Upload THIS sale to server (by SyncId)
+            await SyncService.SyncSingleSaleAsync(sale.SyncId, branchId);
+
+            // 2️⃣ Pull THIS sale back from server (authoritative)
+            await SyncService.DownloadSaleAsync(sale.SyncId);
+
+            // 3️⃣ Sync stock AFTER sale sync
+            await SyncService.SyncStockAsync(branchId);
+
+            success = "Sale synced successfully";
+
+            // Reload page data
+            await ReloadSale();
+        }
+        catch (Exception ex)
+        {
+            error = $"Sync failed: {ex.Message}";
+        }
+        finally
+        {
+            isSyncing = false;
+        }
+    }
+    async Task ReloadSale()
+    {
+        sale = await Db.LocalSales
+            .FirstOrDefaultAsync(x => x.LocalSaleId == SaleId);
+
+        lines = await Db.LocalSaleItems
+            .Where(x => x.LocalSaleId == SaleId)
+            .ToListAsync();
+
+        expenses = await Db.LocalSaleExpenses
+            .Where(x => x.LocalSaleId == SaleId)
+            .ToListAsync();
+
+        StateHasChanged();
+        Back();
+    }
+
+
+    void Back()
+    {
+        Nav.NavigateTo("/unsynced-sales");
+    }
+
+
+    // async Task Print()
+    // {
+    //     await JS.InvokeVoidAsync(
+    //         "printReceipt",
+    //         $"/receipt-print?SaleId={SaleId}"
+    //     );
+    // }
+
+    async Task Print()
+    {
+        await ReceiptPrinter.PrintAsync(SaleId);
+        // await JS.InvokeVoidAsync(
+        //            "printReceipt",
+        //            $"/receipt/{SaleId}"
+        //        );
+        //Nav.NavigateTo($"/receipt/{SaleId}");
+    }
+}

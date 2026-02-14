@@ -21,6 +21,7 @@ namespace FreshFalaye.Pos.Shared.Data
         public DbSet<LocalProductGroup> LocalProductGroups => Set<LocalProductGroup>();
         public DbSet<LocalStoreSettings> LocalStoreSettings => Set<LocalStoreSettings>();
         public DbSet<LocalExpenseMaster> LocalExpenseMaster => Set<LocalExpenseMaster>();
+        public DbSet<SyncState> SyncState => Set<SyncState>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

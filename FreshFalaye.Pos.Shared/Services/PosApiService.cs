@@ -115,6 +115,15 @@ namespace FreshFalaye.Pos.Shared.Services
         }
 
 
+        public async Task<SaleSyncDto> GetUpdatedSalesAsync(long syncVersion)
+        {
+            var _http = CreateClient();
+            var result = await _http.GetFromJsonAsync<SaleSyncDto>(
+                $"api/sales/by-version/{syncVersion}");
+            return result ?? new SaleSyncDto();            
+        }
+        
+
 
 
 

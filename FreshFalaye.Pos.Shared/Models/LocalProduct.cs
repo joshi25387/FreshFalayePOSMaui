@@ -24,5 +24,8 @@ namespace FreshFalaye.Pos.Shared.Models
 
         [NotMapped]
         public string? Base64Image { get; set; }
+        
+        [NotMapped] // important if EF model
+        public decimal AvailableQty { get; set; }
     }
 }

@@ -75,7 +75,7 @@ namespace FreshFalaye.Pos.Shared.Services
                     //{
                     //    ProductId = p.ProductId,
                     //    Qty = p.AvailableQty,
-                    //    LastUpdatedAt = DateTime.UtcNow
+                    //    LastUpdatedAt = DateTime.Now
                     //});
                 }
 
@@ -362,30 +362,110 @@ namespace FreshFalaye.Pos.Shared.Services
             await _db.SaveChangesAsync();
         }
 
+        //public async Task DownloadSaleAsync(Guid syncId)
+        //{
+        //    try
+        //    {
+        //        var dto = await _api.GetSaleBySyncIdAsync(syncId);
+        //        if (dto == null) return;
+
+
+        //        var _localSaleRecord = await _db.LocalSales.Where(s => s.SyncId == dto.SyncId).FirstOrDefaultAsync();
+        //        if (_localSaleRecord != null)
+        //        {
+        //            var _localSaleItems = await _db.LocalSaleItems.Where(s => s.LocalSaleId == _localSaleRecord.LocalSaleId).ToListAsync();
+        //            var _localSaleExpenses = await _db.LocalSaleExpenses.Where(s => s.LocalSaleId == _localSaleRecord.LocalSaleId).ToListAsync();
+        //            _db.LocalSaleItems.RemoveRange(_localSaleItems);
+        //            _db.LocalSaleExpenses.RemoveRange(_localSaleExpenses);
+        //            _db.LocalSales.Remove(_localSaleRecord);
+        //            await _db.SaveChangesAsync();
+        //        }
+
+
+        //        var sale = new LocalSale
+        //        {
+        //            SyncId = dto.SyncId,
+        //            BillNo = dto.BillNo,
+        //            SaleDate = dto.SaleDate,
+        //            CustomerMobile = dto.CustomerMobile,
+        //            CustomerName = dto.CustomerName,
+        //            ProductSubTotal = dto.SubTotal,
+        //            GstTotal = dto.GstTotal,
+        //            GrandTotal = dto.GrandTotal,
+        //            PaymentMode = dto.PaymentMode,
+        //            IsUploaded = true,
+        //            IsSynced = true,
+        //            UploadedAt = DateTime.Now
+        //        };
+
+        //        foreach (var i in dto.Items)
+        //        {
+        //            sale.Items.Add(new LocalSaleItem
+        //            {
+        //                ProductId = i.ProductId,
+        //                ProductName = i.ProductName,
+        //                UnitCode = i.UnitCode,
+        //                Qty = i.Qty,
+        //                Mrp = i.Mrp,
+        //                Discount= i.Discount,
+        //                Rate = i.Rate,
+        //                LineTotal = i.LineTotal
+        //            });
+        //        }
+
+        //        foreach (var e in dto.Expenses)
+        //        {
+        //            sale.Expenses.Add(new LocalSaleExpense
+        //            {
+        //                ExpenseId = e.ExpenseId,
+        //                ExpenseName = e.ExpenseName,
+        //                Amount = e.Amount,
+        //                RateType = e.RateType,
+        //                Rate = e.Rate,
+        //                AddDeduct = e.AddDeduct,
+        //                Bearer = e.Bearer
+        //            });
+        //        }
+
+        //        _db.LocalSales.Add(sale);
+        //        await _db.SaveChangesAsync();
+        //    }
+        //    catch (Exception ex)
+        //    {
+
+        //        throw;
+        //    }
+            
+        //}
+
+
         public async Task DownloadSaleAsync(Guid syncId)
         {
+            using var transaction = await _db.Database.BeginTransactionAsync();
+
             try
             {
                 var dto = await _api.GetSaleBySyncIdAsync(syncId);
-                if (dto == null) return;
+                if (dto == null)
+                    return;
 
+                var localSale = await _db.LocalSales
+                    .Include(x => x.Items)
+                    .Include(x => x.Expenses)
+                    .FirstOrDefaultAsync(s => s.SyncId == dto.SyncId);
 
-                var _localSaleRecord = await _db.LocalSales.Where(s => s.SyncId == dto.SyncId).FirstOrDefaultAsync();
-                if (_localSaleRecord != null)
+                if (localSale != null)
                 {
-                    var _localSaleItems = await _db.LocalSaleItems.Where(s => s.LocalSaleId == _localSaleRecord.LocalSaleId).ToListAsync();
-                    var _localSaleExpenses = await _db.LocalSaleExpenses.Where(s => s.LocalSaleId == _localSaleRecord.LocalSaleId).ToListAsync();
-                    _db.LocalSaleItems.RemoveRange(_localSaleItems);
-                    _db.LocalSaleExpenses.RemoveRange(_localSaleExpenses);
-                    _db.LocalSales.Remove(_localSaleRecord);
-                    await _db.SaveChangesAsync();
+                    _db.LocalSaleItems.RemoveRange(localSale.Items);
+                    _db.LocalSaleExpenses.RemoveRange(localSale.Expenses);
+                    _db.LocalSales.Remove(localSale);
                 }
-
 
                 var sale = new LocalSale
                 {
                     SyncId = dto.SyncId,
-                    BillNo = dto.BillNo,
+                    SyncVersion = dto.SyncVersion,   // 👈 IMPORTANT
+                    BillNo = dto.BillNo ?? "",
                     SaleDate = dto.SaleDate,
                     CustomerMobile = dto.CustomerMobile,
                     CustomerName = dto.CustomerName,
@@ -395,7 +475,7 @@ namespace FreshFalaye.Pos.Shared.Services
                     PaymentMode = dto.PaymentMode,
                     IsUploaded = true,
                     IsSynced = true,
-                    UploadedAt = DateTime.UtcNow
+                    UploadedAt = DateTime.Now
                 };
 
                 foreach (var i in dto.Items)
@@ -407,7 +487,7 @@ namespace FreshFalaye.Pos.Shared.Services
                         UnitCode = i.UnitCode,
                         Qty = i.Qty,
                         Mrp = i.Mrp,
-                        Discount= i.Discount,
+                        Discount = i.Discount,
                         Rate = i.Rate,
                         LineTotal = i.LineTotal
                     });
@@ -419,20 +499,126 @@ namespace FreshFalaye.Pos.Shared.Services
                     {
                         ExpenseId = e.ExpenseId,
                         ExpenseName = e.ExpenseName,
-                        Amount = e.Amount
+                        Amount = e.Amount,
+                        RateType = e.RateType,
+                        Rate = e.Rate,
+                        AddDeduct = e.AddDeduct,
+                        Bearer = e.Bearer
                     });
                 }
 
                 _db.LocalSales.Add(sale);
-                await _db.SaveChangesAsync();
-            }
-            catch (Exception ex)
-            {
 
+                await _db.SaveChangesAsync();
+                await transaction.CommitAsync();
+            }
+            catch
+            {
+                await transaction.RollbackAsync();
                 throw;
             }
-            
         }
+
+
+        public async Task DownloadUpdatedSalesAsync()
+        {
+            using var transaction = await _db.Database.BeginTransactionAsync();
+
+            try
+            {
+                var state = await _db.SyncState.FirstAsync();
+                var lastVersion = state.LastSaleVersion;
+
+                var response = await _api.GetUpdatedSalesAsync(lastVersion);
+
+                if (response == null)
+                    return;
+
+                if (response.SaleRecords.Count == 0)
+                {
+                    state.LastSaleVersion = response.SyncVersion; 
+                    await _db.SaveChangesAsync();
+                    return;
+                }
+                    
+
+                foreach (var dto in response.SaleRecords)
+                {
+                    var localSale = await _db.LocalSales
+                        .Include(x => x.Items)
+                        .Include(x => x.Expenses)
+                        .FirstOrDefaultAsync(s => s.SyncId == dto.SyncId);                    
+
+                    if (localSale != null)
+                    {
+                        _db.LocalSales.Remove(localSale);
+                        await _db.SaveChangesAsync(); // Clear tracking
+                    }
+
+                    var sale = new LocalSale
+                    {
+                        SyncId = dto.SyncId,
+                        SyncVersion = dto.SyncVersion,
+                        BillNo = dto.BillNo ?? "",
+                        SaleDate = dto.SaleDate,
+                        CustomerMobile = dto.CustomerMobile,
+                        CustomerName = dto.CustomerName,
+                        ProductSubTotal = dto.SubTotal,
+                        GstTotal = dto.GstTotal,
+                        GrandTotal = dto.GrandTotal,
+                        PaymentMode = dto.PaymentMode,
+                        IsUploaded = true,
+                        IsSynced = true,
+                        UploadedAt = DateTime.Now
+                    };
+
+                    foreach (var i in dto.Items)
+                    {
+                        sale.Items.Add(new LocalSaleItem
+                        {
+                            ProductId = i.ProductId,
+                            ProductName = i.ProductName,
+                            UnitCode = i.UnitCode,
+                            Qty = i.Qty,
+                            Mrp = i.Mrp,
+                            Discount = i.Discount,
+                            Rate = i.Rate,
+                            LineTotal = i.LineTotal
+                        });
+                    }
+
+                    foreach (var e in dto.Expenses)
+                    {
+                        sale.Expenses.Add(new LocalSaleExpense
+                        {
+                            ExpenseId = e.ExpenseId,
+                            ExpenseName = e.ExpenseName,
+                            Amount = e.Amount,
+                            RateType = e.RateType,
+                            Rate = e.Rate,
+                            AddDeduct = e.AddDeduct,
+                            Bearer = e.Bearer
+                        });
+                    }
+
+                    _db.LocalSales.Add(sale);
+                }
+
+               
+
+                state.LastSaleVersion = response.SyncVersion;
+
+                await _db.SaveChangesAsync();
+                await transaction.CommitAsync();
+            }
+            catch(Exception ex)
+            {
+                await transaction.RollbackAsync();
+                throw;
+            }
+        }
+
+
 
 
     }
