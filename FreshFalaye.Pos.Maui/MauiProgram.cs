@@ -37,15 +37,15 @@ namespace FreshFalaye.Pos.Maui
             builder.Services.AddHttpClient("Api", client =>
             {
                 // client.BaseAddress = new Uri("https://freshfalaye-api-bjgkd4bdgaaaebd2.centralindia-01.azurewebsites.net");
-                // client.BaseAddress = new Uri("https://freshfalayeapi-new-fseuhfafgcbeabaz.eastasia-01.azurewebsites.net");
-                client.BaseAddress = new Uri("https://localhost:7032");
+                 client.BaseAddress = new Uri("https://freshfalayeapi-new-fseuhfafgcbeabaz.eastasia-01.azurewebsites.net");
+                //client.BaseAddress = new Uri("https://localhost:7032");
             }).AddHttpMessageHandler<AuthTokenHandler>();
 
             builder.Services.AddHttpClient("ApiAuth", client =>
             {
                 // client.BaseAddress = new Uri("https://freshfalaye-api-bjgkd4bdgaaaebd2.centralindia-01.azurewebsites.net");
-                // client.BaseAddress = new Uri("https://freshfalayeapi-new-fseuhfafgcbeabaz.eastasia-01.azurewebsites.net");
-                client.BaseAddress = new Uri("https://localhost:7032");
+                 client.BaseAddress = new Uri("https://freshfalayeapi-new-fseuhfafgcbeabaz.eastasia-01.azurewebsites.net");
+               // client.BaseAddress = new Uri("https://localhost:7032");
             });
 
             // 🔹 Platform services
@@ -85,14 +85,34 @@ namespace FreshFalaye.Pos.Maui
 
             });
 
+
+            //builder.Services.AddDbContextFactory<PosDbContext>(options =>
+            //        options.UseSqlServer(
+            //            "Server=DESKTOP-V3QC17D\\SQLEXPRESS;Database=FreshFalayePosDbLocal;Trusted_Connection=True;TrustServerCertificate=True",
+            //            sqlOptions =>
+            //            {
+            //                sqlOptions.CommandTimeout(10);
+            //            }));
+
+
             // 🔹 Local SQL Server DB
             builder.Services.AddDbContext<PosDbContext>(options =>
                 options.UseSqlServer(
-                    "Server=DESKTOP-V3QC17D\\SQLEXPRESS;Database=FreshFalayePosDbProd;Trusted_Connection=True;TrustServerCertificate=True"));
+                    "Server=DESKTOP-V3QC17D\\SQLEXPRESS;Database=FreshFalayePosDbProd;Trusted_Connection=True;TrustServerCertificate=True",
+                    sqlOptions =>
+                    {
+                        sqlOptions.CommandTimeout(10);
+                    })
+                );
 
             //builder.Services.AddDbContext<PosDbContext>(options =>
             //    options.UseSqlServer(
-            //        "Server=DESKTOP-02R0OHJ;Database=FreshFalayePosDb;Trusted_Connection=True;TrustServerCertificate=True"));
+            //        "Server=DESKTOP-02R0OHJ;Database=FreshFalayePosDb;Trusted_Connection=True;TrustServerCertificate=True",
+            //        sqlOptions =>
+            //        {
+            //            sqlOptions.CommandTimeout(15);
+            //        })
+            //        );
 
 
 

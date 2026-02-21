@@ -2,7 +2,8 @@
 @* @rendermode InteractiveServer *@
 
 @using Microsoft.EntityFrameworkCore
-@inject PosDbContext Db
+@* @inject PosDbContext Db *@
+@inject IDbContextFactory<PosDbContext> DbFactory
 @inject NavigationManager Nav
 
 <div class="container-fluid">
@@ -112,6 +113,7 @@
     protected override async Task OnInitializedAsync()
     {
         var today = DateTime.Today;
+        await using var Db = await DbFactory.CreateDbContextAsync();
 
         var todaySales = await Db.LocalSales
             .Where(s => s.SaleDate.Date == today)

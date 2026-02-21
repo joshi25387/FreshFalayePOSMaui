@@ -9,15 +9,21 @@ namespace FreshFalaye.Pos.Shared.Services
 {
     public class ReceiptPdfService
     {
-        private readonly PosDbContext _db;
+        private readonly IDbContextFactory<PosDbContext> _factoryDb;
+        //private readonly PosDbContext _db;
 
-        public ReceiptPdfService(PosDbContext db)
+        //public ReceiptPdfService(PosDbContext db)
+        //{
+        //    _db = db;
+        //}
+        public ReceiptPdfService(IDbContextFactory<PosDbContext> factoryDb)
         {
-            _db = db;
+            _factoryDb = factoryDb;
         }
 
         public async Task<byte[]> GenerateAsync(long saleId)
         {
+            await using var _db = await _factoryDb.CreateDbContextAsync();
             var store = await _db.LocalStoreSettings.FirstAsync();
 
             var sale = await _db.LocalSales

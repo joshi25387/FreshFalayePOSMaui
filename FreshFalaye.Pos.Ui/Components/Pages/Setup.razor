@@ -1,6 +1,7 @@
 ﻿@page "/setup"
 @* @rendermode InteractiveServer *@
-@inject PosDbContext Db
+@* @inject PosDbContext Db *@
+@inject IDbContextFactory<PosDbContext> DbFactory
 @inject NavigationManager Nav
 @inject PosApiService Api
 
@@ -22,6 +23,7 @@
     {
         try
         {
+            await using var Db = await DbFactory.CreateDbContextAsync();
             var result = await Api.RegisterPos(branchCode, deviceCode);
 
             if (result == null)

@@ -10,6 +10,7 @@ namespace FreshFalaye.Pos.Shared.Models
         public long LocalSaleId { get; set; }   // FK to LocalSale
 
         public Guid ProductId { get; set; }
+        public Guid? UnitId { get; set; }
         public string ProductName { get; set; } = null!;
         public string UnitCode { get; set; } = null!;
 
@@ -22,5 +23,6 @@ namespace FreshFalaye.Pos.Shared.Models
         public decimal Amount { get; set; }
         public decimal GstAmount { get; set; }
         public decimal LineTotal { get; set; }
+        public LocalSale LocalSale { get; set; } = null!;
     }
 }

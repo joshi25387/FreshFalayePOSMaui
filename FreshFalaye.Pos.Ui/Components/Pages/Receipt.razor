@@ -2,9 +2,9 @@
 @using FreshFalaye.Pos.Shared.Helpers
 @using Microsoft.EntityFrameworkCore
 
-@inject PosDbContext Db
+@* @inject PosDbContext Db *@
 @inject IJSRuntime JS
-
+@inject IDbContextFactory<PosDbContext> DbFactory
 
 @if (sale == null)
 {
@@ -191,6 +191,7 @@ else
 
     protected override async Task OnInitializedAsync()
     {
+        await using var Db = await DbFactory.CreateDbContextAsync();
         store = await Db.LocalStoreSettings.FirstAsync();
 
         sale = await Db.LocalSales

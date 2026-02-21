@@ -2,7 +2,8 @@
 @* @rendermode InteractiveServer *@
 @inject IReceiptPrinter ReceiptPrinter
 @using Microsoft.EntityFrameworkCore
-@inject PosDbContext Db
+@* @inject PosDbContext Db *@
+@inject IDbContextFactory<PosDbContext> DbFactory
 @inject NavigationManager Nav
 @inject PosSyncService SyncService
 @inject PosAuthService Auth
@@ -152,6 +153,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await using var Db = await DbFactory.CreateDbContextAsync();
         sale = await Db.LocalSales
             .FirstOrDefaultAsync(x => x.LocalSaleId == SaleId);
 
@@ -179,6 +181,8 @@
         error = null;
         success = null;
         StateHasChanged();
+
+        await using var Db = await DbFactory.CreateDbContextAsync();
 
         try
         {
@@ -210,6 +214,7 @@
     }
     async Task ReloadSale()
     {
+        await using var Db = await DbFactory.CreateDbContextAsync();
         sale = await Db.LocalSales
             .FirstOrDefaultAsync(x => x.LocalSaleId == SaleId);
 
@@ -240,9 +245,9 @@
     //     );
     // }
 
-    async Task Print()
+    void Print()
     {
-        await ReceiptPrinter.PrintAsync(SaleId);
+        _ = ReceiptPrinter.PrintAsync(SaleId);
         // await JS.InvokeVoidAsync(
         //            "printReceipt",
         //            $"/receipt/{SaleId}"

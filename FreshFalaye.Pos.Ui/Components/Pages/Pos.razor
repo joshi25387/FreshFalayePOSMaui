@@ -8,7 +8,8 @@
 
 @inject ScaleService Scale
 @inject DialogService DialogService
-@inject PosDbContext Db
+@inject IDbContextFactory<PosDbContext> DbFactory
+@* @inject PosDbContext Db *@
 @inject BillNumberService BillNoService
 @inject PosApiService Api
 @inject PosSaleService SaleService
@@ -26,6 +27,14 @@
 <div tabindex="0"
      @onkeydown="HandleKeyDown"
      class="container-fluid">
+
+     @if (!string.IsNullOrEmpty(error))
+    {
+        <div class="alert alert-danger">
+            <b>DEBUG:</b>
+            <pre>@error</pre>
+        </div>
+    }
 
     @if (isSyncing)
     {
@@ -77,7 +86,7 @@
                 <div class="row mt-1">
                     <div class="col-12">
 
-                       @*  <button class="btn btn-sm btn-outline-secondary me-1"
+                        @*  <button class="btn btn-sm btn-outline-secondary me-1"
                                 disabled>
                             🧾 POS
                         </button>
@@ -157,7 +166,7 @@
 
             <div class="col-md-3">
                 <label>Customer Mobile</label>
-               @*  <input class="form-control form-control-sm"
+                @*  <input class="form-control form-control-sm"
                        @ref="customerMobileRef"
                        @onfocusin="() => isInputFocused = true"
                        @onfocusout="() => isInputFocused = false"
@@ -206,12 +215,12 @@
             <!-- LEFT: PRODUCTS -->
 
 
-            <div class="col-md-7 pos-left">
+            <div class="col-md-6 pos-left">
                 <!-- Product Groups -->
                 <div class="row mb-2">
                     <div class="col-12 group-filter">
                         <button class="btn btn-sm btn-secondary me-1
-                                           @(selectedGroupId == Guid.Empty ? "active" : "")"
+                                               @(selectedGroupId == Guid.Empty ? "active" : "")"
                                 @onclick="() => SelectGroup(Guid.Empty)">
                             All
                         </button>
@@ -219,7 +228,7 @@
                         @foreach (var g in productGroups)
                         {
                             <button class="btn btn-sm btn-secondary me-1
-                                                                   @(selectedGroupId == g.ProductGroupId ? "active" : "")"
+                                                                           @(selectedGroupId == g.ProductGroupId ? "active" : "")"
                                     @onclick="() => SelectGroup(g.ProductGroupId)">
                                 @g.GroupName
                             </button>
@@ -256,7 +265,7 @@
                                 }
                                 <div class="product-name">@p.ProductName</div>
                                 <div class="product-price">
-                                    ₹ @p.SalePrice / @p.UnitCode
+                                    ₹ @p.SalePrice / @p.SecondaryUnitName
                                 </div>
                                 <div class="product-stock @(p.AvailableQty <= 0 ? "out-of-stock" : "")">
                                     Stock: @p.AvailableQty.ToString("0.##")
@@ -269,7 +278,7 @@
 
 
             <!-- RIGHT: CART + EXPENSES -->
-            <div class="col-md-5 pos-right">
+            <div class="col-md-6 pos-right">
                 <!-- CART -->
                 <div class="card pos-cart mb-2">
                     <div class="card-header py-1">
@@ -285,12 +294,13 @@
                             <table class="table table-sm table-bordered mb-0">
                                 <thead>
                                     <tr>
-                                        <th>Item</th>
-                                        <th width="70">Qty</th>
-                                        <th width="70">Dis%</th>
-                                        <th width="70">Mrp</th>
-                                        <th width="70">Rate</th>
-                                        <th width="80">Total</th>
+                                        <th width="140px">Item</th>
+                                        <th width="80px">Unit</th>
+                                        <th width="70px">Qty</th>
+                                        <th width="60px">Dis%</th>
+                                        <th width="60px">Mrp</th>
+                                        <th width="80px">Rate</th>
+                                        <th width="90px">Total</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -299,11 +309,20 @@
                                         <tr class="@(item == selectedItem ? "table-primary" : "")"
                                             @onclick="() => SelectCartItem(item)">
                                             <td>@item.ProductName</td>
-                                            
-                                            
+                                            <td>
+                                                <select class="form-select form-select-sm"
+                                                        @bind="item.UnitId"
+                                                        @bind:after="() => OnUnitChanged(item)">
+                                                    @foreach (var u in item.AvailableUnits)
+                                                    {
+                                                        <option value="@u.Id">@u.UnitCode</option>
+                                                    }
+                                                </select>
+                                            </td>
+
                                             <td>
                                                 <input type="number"
-                                                       disabled = "@item.UseWeighingScale"
+                                                       disabled="@item.UseWeighingScale"
                                                        class="form-control form-control-sm"
                                                        step="@(item.DecimalAllowed ? "0.001" : "1")"
                                                        value="@item.Qty"
@@ -311,7 +330,14 @@
                                             </td>
                                             <td>@item.Discount</td>
                                             <td>@item.Mrp</td>
-                                            <td>@item.Rate</td>
+                                            <td>
+                                                <input type="number"
+                                                       class="form-control form-control-sm"
+                                                       step="@(item.DecimalAllowed ? "0.00" : "0")"
+                                                       value="@item.Rate"
+                                                       @onchange="e => UpdateRate(item, e)" />
+                                            </td>
+                                            @* <td>@item.Rate</td> *@
                                             <td>@item.LineTotal.ToString("0.00")</td>
                                         </tr>
                                     }
@@ -324,10 +350,10 @@
                         <div class="cart-total">
                             ₹ @GrandTotal.ToString("0.00")
                         </div>
-
                         <button class="btn btn-success w-100 mt-2"
+                                disabled="@isSaving"
                                 @onclick="SaveBill">
-                            💾 Save (F2)
+                            @(isSaving ? "Saving..." : "💾 Save (F2)")
                         </button>
                     </div>
                 </div>
@@ -446,6 +472,7 @@
     string success = "";
 
     bool isInputFocused = false;
+    bool isSaving = false;
 
     CartItem? selectedItem;
 
@@ -473,32 +500,48 @@
 
     protected override async Task OnInitializedAsync()
     {
-        Auth.AuthStateChanged += OnAuthStateChanged;
 
-        var setting = await Db.LocalSettings.FirstOrDefaultAsync();
-
-        string port = setting?.WeighingScaleComPortName ?? "COM4";
-        int baud = setting?.WeighingScaleBudRate ?? 9600;
-
-        if (!Scale.IsRunning)
+        try
         {
-            try
+            error = "STEP 1: start init";
+
+            Auth.AuthStateChanged += OnAuthStateChanged;
+
+            error = "STEP 2: create db";
+            await using var Db = await DbFactory.CreateDbContextAsync();
+
+            error = "STEP 3: load settings";
+            var setting = await Db.LocalSettings.FirstOrDefaultAsync();
+
+            error = "STEP 4: scale start";
+            string port = setting?.WeighingScaleComPortName ?? "COM4";
+            int baud = setting?.WeighingScaleBudRate ?? 9600;
+
+            if (!Scale.IsRunning)
             {
-                Scale.Start(port, baud);
+                try
+                {
+                    Scale.Start(port, baud);
+                }
+                catch (Exception)
+                {
+                    ShowError("Weighing machine not started. Please check if it si connected or not.");
+                }
             }
-            catch (Exception)
-            {
-                ShowError("Weighing machine not started. Please check if it si connected or not.");
-            }            
+
+
+
+            billNo = await BillNoService.PeekNextBillNoAsync();
+
+            await LoadProductGroups();
+            await LoadProducts();
+            await LoadExpenses();
+        }
+        catch (Exception ex)
+        {
+            ShowError($"Error : {ex.Message}");
         }
 
-
-
-        billNo = await BillNoService.PeekNextBillNoAsync();
-
-        await LoadProductGroups();
-        await LoadProducts();
-        await LoadExpenses();
 
 
     }
@@ -512,6 +555,7 @@
             showMobileSuggestions = false;
             return;
         }
+        await using var Db = await DbFactory.CreateDbContextAsync();
 
         var matches = await Db.LocalSales
             .Where(x => x.CustomerMobile != null &&
@@ -555,12 +599,14 @@
 
     async Task LoadProductGroups()
     {
+        await using var Db = await DbFactory.CreateDbContextAsync();
         productGroups = await Db.LocalProductGroups.Where(p => p.IsActive).ToListAsync();
     }
 
 
     async Task LoadProducts()
     {
+        await using var Db = await DbFactory.CreateDbContextAsync();
         var productsWithStock = await (
             from p in Db.LocalProducts
             where p.IsActive
@@ -615,6 +661,12 @@
         if (isSyncing)
             return;
 
+        if (isSaving)
+        {
+            ShowError("Cannot sync while saving.");
+            return;
+        }
+
         await Auth.GetApiToken();
         await Auth.RestoreApiTokenAsync();
 
@@ -624,6 +676,7 @@
         StateHasChanged();
         try
         {
+            await using var Db = await DbFactory.CreateDbContextAsync();
             // BranchId should already be in LocalSetting
             var setting = await Db.LocalSettings.FirstAsync();
 
@@ -636,10 +689,11 @@
             await SyncService.SyncProductGroupsAsync();
             await SyncService.SyncProductsAsync(setting.BranchId);
             await SyncService.SyncExpenses();
-            await SyncService.DownloadUpdatedSalesAsync();
             await SyncService.SyncStockAsync(setting.BranchId);
+            await SyncService.DownloadUpdatedSalesAsync();
 
-            
+
+
 
             await LoadProductGroups();
             await LoadProducts();
@@ -651,7 +705,7 @@
         }
         catch (Exception ex)
         {
-            ShowError($"Sync failed: {ex.Message}");            
+            ShowError($"Sync failed: {ex.Message}");
         }
         finally
         {
@@ -721,6 +775,7 @@
     }
     async Task LoadExpenses()
     {
+        await using var Db = await DbFactory.CreateDbContextAsync();
         var _localExpenses = await Db.LocalExpenseMaster.Where(e => e.IsActive)
                             .Select(e => new ExpenseVm
                             {
@@ -785,6 +840,35 @@
     {
         var existing = cart.FirstOrDefault(x => x.ProductId == product.ProductId);
 
+        if (product.UnitId == Guid.Empty || product.SecondaryUnitId == null)
+        {
+            ShowError("Product unit are not updated, please update first");
+            return;
+        }
+
+        var _availableUnits = new List<UnitDto>();
+        if (product.UnitId == product.SecondaryUnitId)
+        {
+            _availableUnits.Add(new UnitDto
+            {
+                Id = product.UnitId,
+                UnitCode = product.PrimaryUnitName
+            });
+        }
+        else if (product.UnitId != product.SecondaryUnitId)
+        {
+            _availableUnits.Add(new UnitDto
+            {
+                Id = product.UnitId,
+                UnitCode = product.PrimaryUnitName
+            });
+            _availableUnits.Add(new UnitDto
+            {
+                Id = product.SecondaryUnitId.Value,
+                UnitCode = product.SecondaryUnitName
+            });
+        }
+
         if (product.UseWeighingScale)
         {
             var result = await DialogService.OpenAsync<WeightDialog>(
@@ -817,8 +901,12 @@
                     Mrp = product.Mrp,
                     Discount = product.Discount,
                     Rate = product.SalePrice,
+                    PrimaryUnitSelected = false,
+                    UnitConversionRatio = product.UnitConversionRatio,
                     GstPercent = product.GstPercent,
-                    UseWeighingScale = product.UseWeighingScale
+                    UseWeighingScale = product.UseWeighingScale,
+                    UnitId = product.SecondaryUnitId.Value,
+                    AvailableUnits = _availableUnits
                 });
             }
         }
@@ -840,15 +928,43 @@
                     Mrp = product.Mrp,
                     Discount = product.Discount,
                     Rate = product.SalePrice,
+                    PrimaryUnitSelected = false,
+                    UnitConversionRatio = product.UnitConversionRatio,
                     GstPercent = product.GstPercent,
-                    UseWeighingScale = product.UseWeighingScale
+                    UseWeighingScale = product.UseWeighingScale,
+                    UnitId = product.SecondaryUnitId.Value,
+                    AvailableUnits = _availableUnits
+
                 });
-            }            
+            }
         }
 
 
 
         RecalculateExpenses();
+    }
+
+    void OnUnitChanged(CartItem item)
+    {
+
+        var _selectedProduct = products.Where(p => p.ProductId == item.ProductId).FirstOrDefault();
+        if (_selectedProduct != null)
+        {
+            if (item.UnitId == _selectedProduct.UnitId)               
+            {
+                item.PrimaryUnitSelected = true;
+                item.Rate = Math.Round((_selectedProduct.SalePrice * _selectedProduct.UnitConversionRatio), 2);
+            }
+            else
+            {
+                item.PrimaryUnitSelected = false;
+                item.Rate = Math.Round(_selectedProduct.SalePrice, 2);
+            }
+        }
+
+
+
+
     }
 
     void UpdateQty(CartItem item, ChangeEventArgs e)
@@ -862,17 +978,38 @@
         }
         RecalculateExpenses();
     }
+    void UpdateRate(CartItem item, ChangeEventArgs e)
+    {
+        if (decimal.TryParse(e.Value?.ToString(), out var rate))
+        {
+            if (!item.DecimalAllowed)
+                rate = Math.Floor(rate);
+
+            item.Rate = rate;
+        }
+        RecalculateExpenses();
+    }
 
     async Task SaveBill()
-    {      
+    {
+        if (isSaving)
+            return;
+
+        if (isSyncing)
+        {
+            ShowError("Cannot save while syncing.");
+            return;
+        }
+        isSaving = true;
+
         try
         {
             if (saleDate == null)
             {
                 ShowError("Select Date");
-                return;                
+                return;
             }
-            if(string.IsNullOrWhiteSpace(paymentMode))
+            if (string.IsNullOrWhiteSpace(paymentMode))
             {
                 await JS.InvokeVoidAsync("blazorFocus", paymentModeRef);
                 ShowError("Salect Payment Mode");
@@ -892,7 +1029,7 @@
             }
             if (!cart.Any())
             {
-                ShowError("Cart is empty");                
+                ShowError("Cart is empty");
                 return;
             }
 
@@ -921,7 +1058,7 @@
             );
 
             // Reset UI
-            cart.Clear();
+
             expenses.ForEach(e =>
             {
                 e.IsSelected = false;
@@ -933,19 +1070,46 @@
             paymentMode = "";
 
             // Generate next bill number
-            billNo = await BillNoService.GenerateNextBillNoAsync();
+            billNo = await BillNoService.PeekNextBillNoAsync();
 
-            ShowSuccess($"Bill saved successfully (Sale #{saleId})");  
-            
+            ShowSuccess($"Bill saved successfully (Sale #{saleId})");
+
             foreach (var item in cart)
             {
+                decimal _qtyToCheck = item.PrimaryUnitSelected ? Math.Round(item.Qty * item.UnitConversionRatio, 2) : item.Qty;
                 var prod = products.FirstOrDefault(p => p.ProductId == item.ProductId);
                 if (prod != null)
-                    prod.AvailableQty -= item.Qty;
+                    prod.AvailableQty -= _qtyToCheck;
             }
-
+            cart.Clear();
             //Nav.NavigateTo($"/receipt/{saleId}", true);
-            await ReceiptPrinter.PrintAsync(saleId);
+            //await ReceiptPrinter.PrintAsync(saleId);
+
+            _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        await ReceiptPrinter.PrintAsync(saleId);
+                    }
+                    catch
+                    {
+                        await InvokeAsync(() =>
+                        {
+                            ShowError("Printer error");
+                        });
+                    }
+                });
+
+
+
+            // var printTask = ReceiptPrinter.PrintAsync(saleId);
+
+            // if (await Task.WhenAny(printTask, Task.Delay(5000)) != printTask)
+            // {
+            //     ShowError("Printer not responding");
+            // }
+
+
             // await JS.InvokeVoidAsync(
             //         "printReceipt",
             //         $"/receipt/{saleId}"
@@ -954,7 +1118,11 @@
         }
         catch (Exception ex)
         {
-            ShowError(ex.Message);            
+            ShowError(ex.Message);
+        }
+        finally
+        {
+            isSaving = false;
         }
     }
 
@@ -1040,7 +1208,7 @@
         }
 
 
-        
+
 
 
         StateHasChanged();
@@ -1060,7 +1228,7 @@
         //return $"file:///{p.ImagePath.Replace("\\", "/")}";
     }
 
-   
+
 
     void ShowSuccess(string message)
     {

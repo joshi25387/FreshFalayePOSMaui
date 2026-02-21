@@ -11,6 +11,15 @@ namespace FreshFalaye.Pos.Shared.Models
         public Guid SyncId { get; set; }
         public string ProductName { get; set; } = null!;
         public Guid ProductGroupId { get; set; }
+
+
+        public Guid UnitId { get; set; }
+        public string PrimaryUnitName { get; set; }
+        public Guid? SecondaryUnitId { get; set; }
+        public string SecondaryUnitName { get; set; }
+        public decimal UnitConversionRatio { get; set; }
+        public string AmountCalculatedOnUnit { get; set; }
+
         public LocalProductGroup? ProductGroup { get; set; }        
         public string UnitCode { get; set; } = null!;
         public bool DecimalAllowed { get; set; }

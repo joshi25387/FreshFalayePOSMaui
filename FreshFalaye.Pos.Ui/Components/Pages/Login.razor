@@ -52,17 +52,25 @@
 
     async Task TryLogin()
     {
-        error = "";
-
-        var ok = await Auth.LoginAsync(username, password);
-
-        if (!ok)
+        try
         {
-            error = "Invalid username or password";
-            return;
-        }
+            error = "";
 
-        Nav.NavigateTo("/pos");
+            var ok = await Auth.LoginAsync(username, password);
+
+            if (!ok)
+            {
+                error = "Invalid username or password";
+                return;
+            }
+
+            Nav.NavigateTo("/pos");
+        }
+        catch (Exception ex)
+        {
+            error = ex.Message;
+        }
+       
     }
     void HandleKeyDown(KeyboardEventArgs e)
     {

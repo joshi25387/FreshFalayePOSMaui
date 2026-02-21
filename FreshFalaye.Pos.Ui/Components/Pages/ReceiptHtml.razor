@@ -2,7 +2,8 @@
 @using FreshFalaye.Pos.Shared.Helpers
 @using FreshFalaye.Pos.Ui.Components.Layout
 @layout EmptyLayout
-@inject PosDbContext Db
+@* @inject PosDbContext Db *@
+@inject IDbContextFactory<PosDbContext> DbFactory
 
 @code {
     [Parameter] public long SaleId { get; set; }
@@ -16,6 +17,7 @@
 
     protected override async Task OnInitializedAsync()
     {
+        await using var Db = await DbFactory.CreateDbContextAsync();
         store = await Db.LocalStoreSettings.FirstAsync();
 
         sale = await Db.LocalSales

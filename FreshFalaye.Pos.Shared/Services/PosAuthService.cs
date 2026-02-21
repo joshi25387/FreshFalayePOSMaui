@@ -11,7 +11,7 @@ namespace FreshFalaye.Pos.Shared.Services
     public class PosAuthService
     {
         private readonly ApiTokenStore _tokenStore;
-        private readonly PosDbContext _db;
+        //private readonly PosDbContext _db;
         private readonly ILocalAuthStore _storage;
         private readonly IHttpClientFactory _factory;
 
@@ -40,14 +40,28 @@ namespace FreshFalaye.Pos.Shared.Services
         //}
 
 
-        public PosAuthService(PosDbContext db, ILocalAuthStore storage,
-            IHttpClientFactory factory, ApiTokenStore tokenStore)
+        private readonly IDbContextFactory<PosDbContext> _factoryDb;
+
+        public PosAuthService(
+            IDbContextFactory<PosDbContext> factoryDb,
+            ILocalAuthStore storage,
+            IHttpClientFactory factory,
+            ApiTokenStore tokenStore)
         {
-            _db = db;
+            _factoryDb = factoryDb;
             _storage = storage;
             _factory = factory;
             _tokenStore = tokenStore;
         }
+
+        //public PosAuthService(PosDbContext db, ILocalAuthStore storage,
+        //    IHttpClientFactory factory, ApiTokenStore tokenStore)
+        //{
+        //    _db = db;
+        //    _storage = storage;
+        //    _factory = factory;
+        //    _tokenStore = tokenStore;
+        //}
         private HttpClient AuthClient
         {
             get
@@ -86,6 +100,8 @@ namespace FreshFalaye.Pos.Shared.Services
         public async Task<bool> LoginAsync(string username, string password)
         {
             var hash = SecurityHelper.Hash(password);
+
+            await using var _db = await _factoryDb.CreateDbContextAsync();
 
             var user = await _db.LocalUsers
                 .AsNoTracking()

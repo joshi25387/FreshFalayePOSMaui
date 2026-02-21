@@ -19,5 +19,6 @@ namespace FreshFalaye.Pos.Shared.Models
         public decimal Amount { get; set; }   // Final calculated amount
 
         public string Bearer { get; set; } = null!; // Self / Customer
+        public LocalSale LocalSale { get; set; } = null!;
     }
 }

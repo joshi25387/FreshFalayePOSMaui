@@ -6,9 +6,12 @@ namespace FreshFalaye.Pos.Shared.Models
     {
         [Key]
         public Guid ProductId { get; set; }
+        public Guid UnitId { get; set; }
         public string ProductName { get; set; } = null!;
         public string UnitCode { get; set; } = null!;
         public bool DecimalAllowed { get; set; }
+        public bool PrimaryUnitSelected { get; set; } = false;
+        public decimal UnitConversionRatio { get; set; } = 1;
 
         public decimal Qty { get; set; }
         public decimal Mrp { get; set; }
@@ -20,5 +23,12 @@ namespace FreshFalaye.Pos.Shared.Models
         public decimal GstAmount => Amount * GstPercent / 100;
         public decimal LineTotal => Amount + GstAmount;
         public bool UseWeighingScale { get; set; }
+        public List<UnitDto> AvailableUnits { get; set; }
+    }
+
+    public class UnitDto
+    {
+        public Guid Id { get; set; }
+        public string UnitCode { get; set; }
     }
 }

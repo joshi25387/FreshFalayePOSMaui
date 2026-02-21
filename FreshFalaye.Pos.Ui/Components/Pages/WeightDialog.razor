@@ -7,7 +7,7 @@
 
     <h5>Enter Weight</h5>
 
-    <RadzenNumeric @bind-Value="Weight" ReadOnly="true"
+    <RadzenNumeric @bind-Value="Weight"
                    Step="0.001"
                    Style="width:100%" />
 
@@ -27,6 +27,8 @@
 @code {
     string WeightText = "0.000";
     [Parameter] public decimal Weight { get; set; } = 0;
+
+    private DateTime _lastUpdate = DateTime.MinValue;
 
     protected override void OnInitialized()
     {
@@ -79,6 +81,15 @@
 
     private void OnWeight(decimal weight)
     {
+        var now = DateTime.Now;
+
+        if ((now - _lastUpdate).TotalMilliseconds < 150)
+            return;
+
+        _lastUpdate = now;
+
+
+
         InvokeAsync(() =>
         {
             Weight = weight;

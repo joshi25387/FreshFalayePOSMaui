@@ -14,6 +14,7 @@
         public decimal GrandTotal { get; set; }
 
         public string PaymentMode { get; set; } = "";
+        public string SaleType { get; set; } = "Normal";
 
         public List<SaleItemUploadDto> Items { get; set; } = new();
         public List<SaleExpenseUploadDto> Expenses { get; set; } = new();
@@ -22,6 +23,7 @@
     public class SaleItemUploadDto
     {
         public Guid ProductId { get; set; }
+        public Guid UnitId { get; set; }
         public string ProductName { get; set; }
         public string UnitCode { get; set; }
         public decimal Qty { get; set; }

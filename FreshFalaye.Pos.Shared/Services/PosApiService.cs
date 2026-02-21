@@ -106,10 +106,10 @@ namespace FreshFalaye.Pos.Shared.Services
             }
         }
 
-        public async Task<SaleDownloadDto?> GetSaleBySyncIdAsync(Guid syncId)
+        public async Task<SaleSyncDto?> GetSaleBySyncIdAsync(Guid syncId)
         {
             var _http = CreateClient();
-            return await _http.GetFromJsonAsync<SaleDownloadDto>(
+            return await _http.GetFromJsonAsync<SaleSyncDto>(
                 $"api/sales/by-sync-id/{syncId}"
             );
         }
@@ -150,6 +150,12 @@ namespace FreshFalaye.Pos.Shared.Services
             public Guid SyncId { get; set; }
             public string ProductName { get; set; } = null!;
             public Guid ProductGroupId { get; set; }
+            public Guid UnitId { get; set; }
+            public string PrimaryUnitName { get; set; }
+            public Guid? SecondaryUnitId { get; set; }
+            public string SecondaryUnitName { get; set; }
+            public decimal UnitConversionRatio { get; set; }
+            public string AmountCalculatedOnUnit { get; set; }
             public decimal SalePrice { get; set; }
             public decimal GstPercent { get; set; }
             public string Unit { get; set; } = null!;

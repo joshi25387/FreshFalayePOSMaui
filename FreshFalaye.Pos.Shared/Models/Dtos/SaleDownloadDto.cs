@@ -6,6 +6,7 @@ namespace FreshFalaye.Pos.Shared.Models.Dtos
     {
         public long SyncVersion { get; set; }
         public List<SaleDownloadDto> SaleRecords { get; set; }
+        public List<Guid> DeletedSyncIds { get; set; }
     }
     public class SaleDownloadDto
     {
